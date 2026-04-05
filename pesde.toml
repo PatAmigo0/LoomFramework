@@ -1,8 +1,9 @@
 name = "tohue/loom"
-version = "0.1.5"
+version = "0.2.0"
 description = "custom framework which is using modern luau types and ByteNet for the insane traffic speed"
 authors = ["PatAmigos_0"]
 license = "MIT"
+repository = "https://github.com/PatAmigo0/LoomFramework"
 
 includes = [
     "Core/**/*.luau",
