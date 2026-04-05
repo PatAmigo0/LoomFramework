@@ -1,0 +1,44 @@
+name = "tohue/loom"
+version = "0.1.5"
+description = "custom framework which is using modern luau types and ByteNet for the insane traffic speed"
+authors = ["PatAmigos_0"]
+license = "MIT"
+
+includes = [
+    "Core/**/*.luau",
+    "Enums/**/*.luau",
+    "Types/**/*.luau",
+    "Vendors/**/*.luau",
+    "Middleware/**/*.luau",
+    "init.luau",
+    "pesde.toml",
+]
+
+[target]
+environment = "roblox"
+lib = "init.luau"
+build_files = ["Core", "Enums", "Types", "Vendors", "Middleware"]
+
+[wally_indices]
+default = "https://github.com/UpliftGames/wally-index"
+
+[indices]
+default = "https://github.com/pesde-pkg/index"
+
+[scripts]
+roblox_sync_config_generator = ".pesde/scripts/roblox_sync_config_generator.luau"
+sourcemap_generator = ".pesde/scripts/sourcemap_generator.luau"
+
+[dev_dependencies]
+scripts = { name = "pesde/scripts_rojo", version = "^0.2.0", target = "lune" }
+rojo = { name = "pesde/rojo", version = "^7.5.1", target = "lune" }
+
+[engines]
+pesde = "^0.7.0"
+lune = "^0.10.2"
+
+[dependencies]
+bytenet = { wally = "ffrostflame/bytenet", version = "^0.4.6" }
+typed-promise = { wally = "lukadev-0/typed-promise", version = "^4.0.2" }
+typed_logger = { name = "patamigo0/typed_logger", version = "^0.1.6" }
+sift = { wally = "csqrl/sift", version = "^0.0.11" }
