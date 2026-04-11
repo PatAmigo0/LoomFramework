@@ -97,7 +97,7 @@ function Loom.CreateService<T, P>(def: T & PrivateTypes.LoomDef, additionalParam
 
 	local newService = Service.new(def)
 	injectDebugger(newService)
-	return ServiceManager.Register(newService, additionalParams) :: any
+	return ServiceManager.Register(newService, additionalParams :: any) :: any
 end
 
 function Loom.CreateController<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): P & PublicTypes.Controller<T>
@@ -105,10 +105,10 @@ function Loom.CreateController<T, P>(def: T & PrivateTypes.LoomDef, additionalPa
 
 	local newController = Controller.new(def)
 	injectDebugger(newController)
-	return ControllerManager.Register(newController, additionalParams) :: any
+	return ControllerManager.Register(newController, additionalParams :: any) :: any
 end
 
-function Loom.GetService(name: string)
+function Loom.GetService(name: string): any
 	if IS_SERVER then
 		return ServiceManager.Get(name)
 	end
