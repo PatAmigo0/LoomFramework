@@ -3,7 +3,8 @@
 --[=[
 	Basic
 ]=]
-local Types = require(script.Types)
+local PrivateTypes = require(script.Types.Private)
+local PublicTypes = require(script.Types.Public)
 local Enums = require(script.Enums)
 local Vendors = require(script.Vendors)
 
@@ -75,31 +76,42 @@ local function initializeByteNet(def: any, namespace: "Client" | "Net")
 	end
 end
 
+local function injectDebugger(item: any)
+	local newLogger = Logger.new() :: any
+	newLogger._name = item.Name -- ovr name
+	item.Debugger = table.freeze(newLogger:AtDebug())
+end
+
 --- Use with **!strict** enabled.
 --- Helps to make sure that your schema definition is correct
-function Loom.Definition<T>(def: T & Types.ServiceDef): T & Types.ServiceDef
+function Loom.Definition<T>(def: T & PrivateTypes.LoomDef): T & PrivateTypes.LoomDef
 	return def
 end
 
-function Loom.RegisterPacket<T>(packetDef: Types.PacketDef<T>): Types.Packet<T>
+function Loom.RegisterPacket<T>(packetDef: PrivateTypes.PacketDef<T>): PrivateTypes.Packet<T>
 	return packetDef :: any
 end
 
-function Loom.CreateService<T>(def: T & Types.ServiceDef): any
-	initializeByteNet(def, Enums.NetworkNamespaceEnum.Client)
-	local newService = Service.new(def)
+function Loom.CreateService<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): T & P & PublicTypes.Service<T>
+	initializeByteNet(def :: any, Enums.NetworkNamespaceEnum.Client)
 
-	return ServiceManager.Register(newService) :: any
+	local newService = Service.new(def)
+	injectDebugger(newService)
+	return ServiceManager.Register(newService, additionalParams) :: any
 end
 
-function Loom.CreateController<T>(def: T & Types.ControllerDef): any
+function Loom.CreateController<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): P & PublicTypes.Controller<T>
 	initializeByteNet(def, Enums.NetworkNamespaceEnum.Net)
 
 	local newController = Controller.new(def)
-	return ControllerManager.Register(newController) :: any
+	injectDebugger(newController)
+	return ControllerManager.Register(newController, additionalParams) :: any
 end
 
 function Loom.GetService(name: string)
+	if IS_SERVER then
+		return ServiceManager.Get(name)
+	end
 	return ControllerManager.Get(name)
 end
 

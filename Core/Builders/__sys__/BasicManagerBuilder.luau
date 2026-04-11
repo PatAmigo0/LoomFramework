@@ -1,11 +1,10 @@
 --!strict
 local LoomRoot = script.Parent.Parent.Parent.Parent -- script.__sys__.Builders.Core.Loom
 
-local LoomTypes = require(LoomRoot.Types)
+local PrivateTypes = require(LoomRoot.Types.Private)
 local Logger = require(LoomRoot.Vendors.Logger)
 local Promise = require(LoomRoot.Vendors.Promise)
 local Sift = require(LoomRoot.Vendors.Sift)
-local Types = require(LoomRoot.Types)
 
 local Array = Sift.Array
 local Dictionary = Sift.Dictionary
@@ -20,7 +19,7 @@ local function runLifecycle(item: any, methodName: string): boolean
 			logger:AtWarning():Log(method)
 		end
 
-		return true -- we ran nothing so basically we've  passed
+		return true -- we've ran nothing so basically we've  passed
 	end
 
 	local success, err = xpcall(function()
@@ -35,28 +34,38 @@ local function runLifecycle(item: any, methodName: string): boolean
 	return true
 end
 
-local function normalizeItem(item: LoomTypes.LoomMember)
+local function normalizeItem(item: PrivateTypes.LoomMember)
 	if not item.Priority then
 		item.Priority = 0
+	end
+end
+
+local function fillItem(item: PrivateTypes.LoomMember, params: { [any]: any? }?)
+	if not params then
+		return
+	end
+
+	for key, value in params do
+		item[key] = value
 	end
 end
 
 local ManagerBuilder = {}
 ManagerBuilder.__index = ManagerBuilder
 
-function ManagerBuilder.new<T>(options: LoomTypes.BuilderOptions): LoomTypes.LoomManager<T>
+function ManagerBuilder.new<T>(options: PrivateTypes.BuilderOptions): PrivateTypes.LoomManager<T>
 	return ManagerBuilder._buildManager(options)
 end
 
-function ManagerBuilder._buildManager<T>(options: LoomTypes.BuilderOptions): LoomTypes.LoomManager<T>
+function ManagerBuilder._buildManager<T>(options: PrivateTypes.BuilderOptions): PrivateTypes.LoomManager<T>
 	local ModuleName = options.Name
 	local InitMethod = options.InitMethod or "LoomInit"
 	local StartMethod = options.StartMethod or "LoomStart"
 
 	local Manager = {}
-	local items: { [string]: T & Types.LoomMember } = {}
+	local items: { [string]: T & PrivateTypes.LoomMember } = {}
 
-	function Manager.Register(item: T & Types.LoomMember): T
+	function Manager.Register(item: T & PrivateTypes.LoomMember, params: { [any]: any? }?): T
 		local member = item :: any
 
 		if items[member.Name] then
@@ -64,6 +73,8 @@ function ManagerBuilder._buildManager<T>(options: LoomTypes.BuilderOptions): Loo
 		end
 
 		normalizeItem(member)
+		fillItem(member, params)
+
 		items[member.Name] = item
 		return item
 	end
@@ -117,7 +128,7 @@ function ManagerBuilder._buildManager<T>(options: LoomTypes.BuilderOptions): Loo
 
 	Manager._items = items
 
-	return table.freeze((Manager :: any) :: LoomTypes.LoomManager<T>)
+	return table.freeze((Manager :: any) :: PrivateTypes.LoomManager<T>)
 end
 
 return table.freeze(ManagerBuilder)
