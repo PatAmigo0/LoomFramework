@@ -38,13 +38,14 @@ Loom.Logger = Logger
 
 Loom.Enums = {
 	Reliability = Enums.ReliabilityTypeEnum,
+	Network = Enums.NetworkNamespaceEnum,
 	LoomType = Enums.LoomTypeEnum,
 }
 
 Loom.IS_STUDIO = IS_STUDIO
 Loom.IS_SERVER = IS_SERVER
 
-local function initializeByteNet(def: any)
+local function initializeByteNet(def: any, namespace: "Client" | "Net")
 	if def.Client then
 		local clientMap = def.Client :: any
 
@@ -66,6 +67,11 @@ local function initializeByteNet(def: any)
 			local normalizedPacket = type(packet) == "function" and packet() or packet
 			clientMap[methodName] = table.freeze(normalizedPacket)
 		end
+
+		if namespace ~= Enums.NetworkNamespaceEnum.Client then
+			def[Enums.NetworkNamespaceEnum.Net] = clientMap
+			def[Enums.NetworkNamespaceEnum.Client] = nil
+		end
 	end
 end
 
@@ -80,14 +86,14 @@ function Loom.RegisterPacket<T>(packetDef: Types.PacketDef<T>): Types.Packet<T>
 end
 
 function Loom.CreateService<T>(def: T & Types.ServiceDef): any
-	initializeByteNet(def)
+	initializeByteNet(def, Enums.NetworkNamespaceEnum.Client)
 	local newService = Service.new(def)
 
 	return ServiceManager.Register(newService) :: any
 end
 
 function Loom.CreateController<T>(def: T & Types.ControllerDef): any
-	initializeByteNet(def)
+	initializeByteNet(def, Enums.NetworkNamespaceEnum.Net)
 
 	local newController = Controller.new(def)
 	return ControllerManager.Register(newController) :: any

@@ -1,9 +1,9 @@
 --!strict
 
 local LoomRoot = script.Parent.Parent
-local ReliabilityTypeModule = require(LoomRoot.Types.Public.Enums)
+local Enums = require(LoomRoot.Types.Public.Enums)
 
-local ReliabilityType: ReliabilityTypeModule.ReliabilityTypeEnum = {
+local ReliabilityType: Enums.ReliabilityTypeEnum = {
 	Reliable = "reliable",
 	Unreliable = "unreliable",
 }

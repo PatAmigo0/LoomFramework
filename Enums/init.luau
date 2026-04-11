@@ -2,9 +2,11 @@
 
 local LoomTypeEnum = require(script.LoomTypeEnum)
 local ReliabilityTypeEnum = require(script.ReliabilityTypeEnum)
+local NetworkNamespaceEnum = require(script.NetworkNamespaceEnum)
 
 local Enums = {
 	ReliabilityTypeEnum = ReliabilityTypeEnum,
+	NetworkNamespaceEnum = NetworkNamespaceEnum,
 	LoomTypeEnum = LoomTypeEnum,
 }
 
