@@ -13,6 +13,9 @@ export type PacketDef<T> = PublicTypes.PacketDef<T>
 
 export type Logger = PublicTypes.Logger
 
+export type ReliabilityEnum = PublicTypes.ReliabilityEnum
+export type NetworkNamespaceEnum = PublicTypes.NetworkNamespaceEnum
+
 -- Private
 export type LoomMember = PrivateTypes.LoomMember
 export type LoomManager<T> = PrivateTypes.LoomManager<T>

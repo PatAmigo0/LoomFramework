@@ -13,7 +13,8 @@ export type ServiceDef = ServiceModule.ServiceDef
 export type ControllerDef = ControllerModule.ControllerDef
 export type PacketDef<T> = PacketDefModule.PacketDef<T>
 
-export type ReliabilityType = EnumsModule.ReliabilityTypeEnum
+export type ReliabilityEnum = EnumsModule.ReliabilityTypeEnum
+export type NetworkNamespaceEnum = EnumsModule.NetworkNamespaceEnum
 
 export type Logger = UtilsModule.Logger
 
