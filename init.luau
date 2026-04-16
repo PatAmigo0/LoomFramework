@@ -1,35 +1,33 @@
 --!strict
 
---[=[
-	Basic
-]=]
+-- ==========================================
+-- DEPENDENCIES
+-- ==========================================
+local RunService = game:GetService("RunService")
+
 local PrivateTypes = require(script.Types.Private)
+--selene: allow(unused_variable)
 local PublicTypes = require(script.Types.Public)
 local Enums = require(script.Enums)
 local Vendors = require(script.Vendors)
+local Core = require(script.Core)
 
 local Logger = Vendors.Logger
-
---[=[
-	Core
-]=]
-local Core = require(script.Core)
 local Promise = Vendors.Promise
 local ByteNet = Vendors.ByteNet
 local Sift = Vendors.Sift
 
 local ControllerManager = Core.ControllerManager
 local ServiceManager = Core.ServiceManager
-
 local Service = Core.Service
 local Controller = Core.Controller
 
-local IS_STUDIO = game:GetService("RunService"):IsStudio()
-local IS_SERVER = game:GetService("RunService"):IsServer()
+-- ==========================================
+-- ENVIRONMENT & EXPORTS
+-- ==========================================
+local IS_STUDIO = RunService:IsStudio()
+local IS_SERVER = RunService:IsServer()
 
---[=[
-	Main
-]=]
 local Loom = {}
 
 Loom.ByteNet = ByteNet
@@ -46,83 +44,93 @@ Loom.Enums = {
 Loom.IS_STUDIO = IS_STUDIO
 Loom.IS_SERVER = IS_SERVER
 
+-- ==========================================
+-- INTERNAL UTILITIES
+-- ==========================================
 local function initializeByteNet(def: any, namespace: "Client" | "Net")
-	if def.Client then
-		local clientMap = def.Client :: any
+	if not def.Client then
+		return
+	end
 
-		local registeredPackets = ByteNet.defineNamespace(def.Name, function()
-			local packets = {}
-			for methodName, packetDef in pairs(clientMap) do
-				local newPacket = ByteNet.definePacket({
-					value = packetDef.Schema,
-					reliabilityType = packetDef.ReliabilityType,
-					callbackBehavior = packetDef.CallbackBehavior,
-				})
-				packets[methodName] = newPacket
-			end
+	local clientMap = def.Client :: any
 
-			return packets
-		end)
-
-		for methodName, packet in pairs(registeredPackets) do
-			local normalizedPacket = type(packet) == "function" and packet() or packet
-			clientMap[methodName] = table.freeze(normalizedPacket)
+	local registeredPackets = ByteNet.defineNamespace(def.Name, function()
+		local packets = {}
+		for methodName, packetDef in pairs(clientMap) do
+			packets[methodName] = ByteNet.definePacket({
+				value = packetDef.Schema,
+				reliabilityType = packetDef.ReliabilityType,
+				callbackBehavior = packetDef.CallbackBehavior,
+			})
 		end
+		return packets
+	end)
 
-		if namespace ~= Enums.NetworkNamespaceEnum.Client then
-			def[Enums.NetworkNamespaceEnum.Net] = clientMap
-			def[Enums.NetworkNamespaceEnum.Client] = nil
-		end
+	for methodName, packet in pairs(registeredPackets) do
+		local normalizedPacket = type(packet) == "function" and packet() or packet
+		clientMap[methodName] = table.freeze(normalizedPacket)
+	end
+
+	if namespace ~= Enums.NetworkNamespaceEnum.Client then
+		def[Enums.NetworkNamespaceEnum.Net] = clientMap
+		def[Enums.NetworkNamespaceEnum.Client] = nil
 	end
 end
 
 local function injectDebugger(item: any)
 	local newLogger = Logger.new() :: any
-	newLogger._name = item.Name -- ovr name
+	newLogger._name = item.Name
 	item.Debugger = table.freeze(newLogger:AtDebug())
 end
 
---- Use with **!strict** enabled.
+-- ==========================================
+-- PUBLIC API: SCHEMAS & DEFINITIONS
+-- ==========================================
+
+--- Use with **!strict** enabled
 --- Helps to make sure that your schema definition is correct
-function Loom.Definition<T>(def: T & PrivateTypes.LoomDef): T & PrivateTypes.LoomDef
+function Loom.Define<T>(def: T & PrivateTypes.LoomDef): T & PrivateTypes.LoomDef
 	return def
 end
 
-function Loom.RegisterPacket<T>(packetDef: PrivateTypes.PacketDef<T>): PrivateTypes.Packet<T>
+function Loom.Packet<T>(packetDef: PrivateTypes.PacketDef<T>): PrivateTypes.Packet<T>
 	return packetDef :: any
 end
 
-function Loom.CreateService<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): T & P & PublicTypes.Service<T>
-	initializeByteNet(def :: any, Enums.NetworkNamespaceEnum.Client)
+-- ==========================================
+-- PUBLIC API: LIFECYCLE & INJECTION
+-- ==========================================
 
-	local newService = Service.new(def)
-	injectDebugger(newService)
-	return ServiceManager.Register(newService, additionalParams :: any) :: any
+function Loom.Weave<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): any
+	if IS_SERVER then
+		initializeByteNet(def :: any, Enums.NetworkNamespaceEnum.Client)
+		local newService = Service.new(def)
+		injectDebugger(newService)
+
+		return ServiceManager.Register(newService, additionalParams :: any)
+	else
+		initializeByteNet(def, Enums.NetworkNamespaceEnum.Net)
+		local newController = Controller.new(def)
+		injectDebugger(newController)
+
+		return ControllerManager.Register(newController, additionalParams :: any)
+	end
 end
 
-function Loom.CreateController<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): P & PublicTypes.Controller<T>
-	initializeByteNet(def, Enums.NetworkNamespaceEnum.Net)
-
-	local newController = Controller.new(def)
-	injectDebugger(newController)
-	return ControllerManager.Register(newController, additionalParams :: any) :: any
-end
-
-function Loom.GetService(name: string): any
+function Loom.Resolve(name: string): any
 	if IS_SERVER then
 		return ServiceManager.Get(name)
 	end
 	return ControllerManager.Get(name)
 end
 
-function Loom.Start()
+function Loom.Spin()
 	return Promise.new(function(resolve)
 		if IS_SERVER then
 			ServiceManager.Start()
 		else
 			ControllerManager.Start()
 		end
-
 		resolve()
 	end)
 end

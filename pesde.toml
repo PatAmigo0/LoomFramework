@@ -43,3 +43,4 @@ bytenet = { wally = "ffrostflame/bytenet", version = "^0.4.6" }
 typed-promise = { wally = "lukadev-0/typed-promise", version = "^4.0.2" }
 typed_logger = { name = "patamigo0/typed_logger", version = "^0.1.6" }
 sift = { wally = "csqrl/sift", version = "^0.0.11" }
+signal = { wally = "sleitnick/signal", version = "^2.0.3" }

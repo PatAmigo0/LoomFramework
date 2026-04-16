@@ -40,13 +40,13 @@ local function normalizeItem(item: PrivateTypes.LoomMember)
 	end
 end
 
-local function fillItem(item: PrivateTypes.LoomMember, params: { [any]: any? }?)
+local function fillItem(item: PrivateTypes.LoomMember, params: PrivateTypes.AnyTable?)
 	if not params then
 		return
 	end
 
 	for key, value in params do
-		item[key] = value
+		(item :: any)[key] = value
 	end
 end
 
@@ -65,7 +65,7 @@ function ManagerBuilder._buildManager<T>(options: PrivateTypes.BuilderOptions): 
 	local Manager = {}
 	local items: { [string]: T & PrivateTypes.LoomMember } = {}
 
-	function Manager.Register(item: T & PrivateTypes.LoomMember, params: { [any]: any? }?): T
+	function Manager.Register(item: T & PrivateTypes.LoomMember, params: PrivateTypes.AnyTable?): T
 		local member = item :: any
 
 		if items[member.Name] then
@@ -118,11 +118,7 @@ function ManagerBuilder._buildManager<T>(options: PrivateTypes.BuilderOptions): 
 
 		logger:AtDebug():Log(`[{ModuleName}] async start allowed: {asyncStart}`)
 		for _, service in sorted do
-			if asyncStart then
-				task.spawn(runLifecycle, service, StartMethod)
-			else
-				runLifecycle(service, StartMethod)
-			end
+			task.spawn(runLifecycle, service, StartMethod)
 		end
 	end
 
