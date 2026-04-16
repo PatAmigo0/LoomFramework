@@ -7,7 +7,7 @@ local ByteNetLib = require(LoomRoot.Types.Private.Vendors.ByteNetLib)
 export type AnyNet = { [string]: PacketDef.PacketDef<any> | ByteNetLib.Packet<any> }
 
 export type LoomDef = LoomMember.LoomMember & {
-	Client: { [string]: PacketDef.PacketDef<any> | ByteNetLib.Packet<any> }?,
+	Client: AnyNet?,
 }
 
 return nil

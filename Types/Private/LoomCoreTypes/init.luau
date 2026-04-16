@@ -4,10 +4,14 @@ local LoomDef = require(script.LoomDef)
 local LoomMember = require(script.LoomMember)
 local LoomManager = require(script.LoomManager)
 local PacketDef = require(script.PacketDef)
+local Table = require(script.Table)
 
 export type LoomDef = LoomDef.LoomDef
 export type LoomMember<T = any> = LoomMember.LoomMember<T>
 export type LoomManager<T> = LoomManager.LoomManager<T>
 export type PacketDef<T> = PacketDef.PacketDef<T>
+
+export type AnyTable = Table.AnyTable
+export type AnyGenericTable<T> = Table.AnyGenericTable<T>
 
 return nil
