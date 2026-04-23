@@ -15,6 +15,9 @@ export type PacketDef<T> = {
 	ReliabilityType: ReliabilityType,
 	Schema: ByteNetLib.dataTypeInterface<T>,
 	CallbackBehavior: CallbackBehavior?,
+
+	RateLimit: number?,
+	Middleware: { (player: Player, data: T) -> boolean }?,
 }
 
 return nil
