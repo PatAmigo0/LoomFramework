@@ -90,7 +90,7 @@ end
 --- Use with **!strict** enabled
 --- Helps to make sure that your schema definition is correct
 function Loom.Define<T>(def: T & PrivateTypes.LoomDef): T & PrivateTypes.LoomDef
-	return def
+	return def :: any
 end
 
 function Loom.Packet<T>(packetDef: PrivateTypes.PacketDef<T>): PrivateTypes.Packet<T>
