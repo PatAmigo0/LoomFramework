@@ -9,6 +9,7 @@ local PrivateTypes = require(script.Types.Private)
 --selene: allow(unused_variable)
 local PublicTypes = require(script.Types.Public)
 local Enums = require(script.Enums)
+local Middleware = require(script.Middleware)
 local Vendors = require(script.Vendors)
 local Core = require(script.Core)
 
@@ -41,6 +42,8 @@ Loom.Enums = {
 	LoomType = Enums.LoomTypeEnum,
 }
 
+Loom.Middleware = Middleware
+
 Loom.IS_STUDIO = IS_STUDIO
 Loom.IS_SERVER = IS_SERVER
 
@@ -53,27 +56,43 @@ local function initializeByteNet(def: any, namespace: "Client" | "Net")
 	end
 
 	local clientMap = def.Client :: any
-
 	local registeredPackets = ByteNet.defineNamespace(def.Name, function()
-		local packets = {}
-		for methodName, packetDef in pairs(clientMap) do
-			packets[methodName] = ByteNet.definePacket({
+		return Sift.Dictionary.map(clientMap, function(packetDef)
+			return ByteNet.definePacket({
 				value = packetDef.Schema,
 				reliabilityType = packetDef.ReliabilityType,
 				callbackBehavior = packetDef.CallbackBehavior,
-			})
-		end
-		return packets
+			} :: PrivateTypes.ByteNetPacket<any>)
+		end) :: { [string]: PrivateTypes.Packet<any> }
 	end)
 
-	for methodName, packet in pairs(registeredPackets) do
-		local normalizedPacket = type(packet) == "function" and packet() or packet
-		clientMap[methodName] = table.freeze(normalizedPacket)
-	end
+	clientMap = Sift.Dictionary.map(registeredPackets, function(packet, methodName)
+		local originalDef = clientMap[methodName] :: PrivateTypes.PacketDef<any>
+		local normalizedPacket: PrivateTypes.Packet<any> = type(packet) == "function" and packet() or packet
+		local customPacket = table.clone(normalizedPacket)
 
+		if IS_SERVER and originalDef.Middleware then
+			local originalListen = customPacket.listen
+			customPacket.listen = function(callback)
+				originalListen(function(data, player)
+					for _, middlewareFilter in ipairs(originalDef.Middleware) do
+						local sender = player :: Player
+						if not middlewareFilter(sender, data) then
+							print("no")
+							return
+						end
+					end
+					callback(data, player)
+				end)
+			end
+		end
+
+		return table.freeze(customPacket)
+	end)
+
+	def[namespace] = clientMap
 	if namespace ~= Enums.NetworkNamespaceEnum.Client then
-		def[Enums.NetworkNamespaceEnum.Net] = clientMap
-		def[Enums.NetworkNamespaceEnum.Client] = nil
+		Sift.Dictionary.removeKey(def, Enums.NetworkNamespaceEnum.Client)
 	end
 end
 

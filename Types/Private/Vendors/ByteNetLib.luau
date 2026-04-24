@@ -11,7 +11,7 @@ export type dataTypeInterface<T> = {
 export type Schema = dataTypeInterface<any>
 
 -- Props for creating a packet
-export type packetProps<T> = {
+export type PacketProps<T> = {
 	value: dataTypeInterface<T>,
 	reliabilityType: ("reliable" | "unreliable")?,
 	callbackBehavior: {
@@ -34,7 +34,7 @@ export type Packet<T> = {
 
 -- ByteNet
 export type ByteNet = {
-	definePacket: <T>(props: packetProps<T>) -> Packet<T>,
+	definePacket: <T>(props: PacketProps<T>) -> Packet<T>,
 	defineNamespace: <T>(name: string, namespace: () -> T) -> T,
 
 	-- Structure creators
