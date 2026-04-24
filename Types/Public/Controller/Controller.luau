@@ -1,7 +1,7 @@
 --!strict
 
 local LoomRoot = script.Parent.Parent.Parent.Parent -- Loom/Types/Public/Controller/<script>
-local Logger = require(LoomRoot.Types.Public.Utils.Logger)
+local Logger = require(LoomRoot.Types.Public.Vendors.Logger)
 
 -- selene: allow(unused_variable)
 local Enums = require(LoomRoot.Enums)
