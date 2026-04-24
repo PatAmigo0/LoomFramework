@@ -2,14 +2,15 @@
 
 local LoomRoot = script.Parent.Parent
 
-local LoomTypes = require(LoomRoot.Types)
+local PrivateTypes = require(LoomRoot.Types.Private)
+local PublicTypes = require(LoomRoot.Types.Public)
 local LoomEnums = require(LoomRoot.Enums)
 
 local Controller = {}
 Controller.__index = Controller
 
-function Controller.new(def: LoomTypes.ControllerDef): LoomTypes.Controller
-	local self = setmetatable(def, Controller) :: LoomTypes.Controller
+function Controller.new(def: PrivateTypes.LoomDef): PublicTypes.Controller
+	local self = setmetatable(def, Controller) :: PublicTypes.Controller
 	self._loomType = LoomEnums.LoomTypeEnum.Controller
 	return self
 end
