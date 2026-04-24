@@ -173,6 +173,25 @@ index_url = "https://github.com/UpliftGames/wally-index"
 [graph."wally#lukadev-0/typed-promise@4.0.2 roblox".pkg_ref.dependencies]
 Promise = [{ wally = "wally#evaera/promise", version = ">=4.0.0, <5.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
 
+[graph."wally#sleitnick/component@2.4.8 roblox"]
+direct = ["component", { wally = "wally#sleitnick/component", version = "^2.4.8", index = "default" }, "standard"]
+
+[graph."wally#sleitnick/component@2.4.8 roblox".dependencies]
+Promise = ["wally#evaera/promise@4.0.0 roblox", "standard"]
+Signal = ["wally#sleitnick/signal@2.0.3 roblox", "standard"]
+Symbol = ["wally#sleitnick/symbol@2.0.1 roblox", "standard"]
+Trove = ["wally#sleitnick/trove@1.8.0 roblox", "standard"]
+
+[graph."wally#sleitnick/component@2.4.8 roblox".pkg_ref]
+ref_ty = "wally"
+index_url = "https://github.com/UpliftGames/wally-index"
+
+[graph."wally#sleitnick/component@2.4.8 roblox".pkg_ref.dependencies]
+Promise = [{ wally = "wally#evaera/promise", version = ">=4.0.0, <5.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
+Signal = [{ wally = "wally#sleitnick/signal", version = ">=2.0.0, <3.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
+Symbol = [{ wally = "wally#sleitnick/symbol", version = ">=2.0.0, <3.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
+Trove = [{ wally = "wally#sleitnick/trove", version = ">=1.0.0, <2.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
+
 [graph."wally#sleitnick/log@0.1.2 roblox".pkg_ref]
 ref_ty = "wally"
 index_url = "https://github.com/UpliftGames/wally-index"
@@ -181,5 +200,16 @@ index_url = "https://github.com/UpliftGames/wally-index"
 direct = ["signal", { wally = "wally#sleitnick/signal", version = "^2.0.3", index = "default" }, "standard"]
 
 [graph."wally#sleitnick/signal@2.0.3 roblox".pkg_ref]
+ref_ty = "wally"
+index_url = "https://github.com/UpliftGames/wally-index"
+
+[graph."wally#sleitnick/symbol@2.0.1 roblox".pkg_ref]
+ref_ty = "wally"
+index_url = "https://github.com/UpliftGames/wally-index"
+
+[graph."wally#sleitnick/trove@1.8.0 roblox"]
+direct = ["trove", { wally = "wally#sleitnick/trove", version = "^1.8.0", index = "default" }, "standard"]
+
+[graph."wally#sleitnick/trove@1.8.0 roblox".pkg_ref]
 ref_ty = "wally"
 index_url = "https://github.com/UpliftGames/wally-index"

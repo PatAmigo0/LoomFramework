@@ -18,12 +18,13 @@ local Promise = Vendors.Promise
 local ByteNet = Vendors.ByteNet
 local Sift = Vendors.Sift
 local Signal = Vendors.Signal
+local Trove = Vendors.Trove
 
 local ControllerManager = Core.ControllerManager
 local ServiceManager = Core.ServiceManager
 local Service = Core.Service
 local Controller = Core.Controller
-
+local ComponentCore = Core.Component
 -- ==========================================
 -- ENVIRONMENT & EXPORTS
 -- ==========================================
@@ -32,11 +33,17 @@ local IS_SERVER = RunService:IsServer()
 
 local Loom = {}
 
-Loom.ByteNet = ByteNet
-Loom.Promise = Promise
-Loom.Sift = Sift
-Loom.Logger = Logger
-Loom.Signal = Signal
+Loom.Util = {
+	ByteNet = ByteNet,
+	Promise = Promise,
+	Sift = Sift,
+	Logger = Logger,
+	Signal = Signal,
+	Component = function(def: any)
+		return ComponentCore.Define(def)
+	end,
+	Trove = Trove,
+}
 
 Loom.Enums = {
 	Reliability = Enums.ReliabilityTypeEnum,
@@ -97,10 +104,11 @@ local function initializeByteNet(def: any, namespace: "Client" | "Net")
 	end
 end
 
-local function injectDebugger(item: any)
+local function injectUtilities(item: any)
 	local newLogger = Logger.new() :: any
 	newLogger._name = item.Name
 	item.Debugger = table.freeze(newLogger:AtDebug())
+	item.Trove = Trove.new()
 end
 
 -- ==========================================
@@ -125,13 +133,13 @@ function Loom.Weave<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): 
 	if IS_SERVER then
 		initializeByteNet(def :: any, Enums.NetworkNamespaceEnum.Client)
 		local newService = Service.new(def)
-		injectDebugger(newService)
+		injectUtilities(newService)
 
 		return ServiceManager.Register(newService, additionalParams :: any)
 	else
 		initializeByteNet(def, Enums.NetworkNamespaceEnum.Net)
 		local newController = Controller.new(def)
-		injectDebugger(newController)
+		injectUtilities(newController)
 
 		return ControllerManager.Register(newController, additionalParams :: any)
 	end
