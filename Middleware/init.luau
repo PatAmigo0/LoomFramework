@@ -1,5 +1,7 @@
-local RateLimit = require(script.RateLimitter)
+local rateLimit = require(script.RateLimit)
+local isAlive = require(script.IsAlive)
 
 return {
-	RateLimit = RateLimit,
+	RateLimit = rateLimit,
+	IsAlive = isAlive,
 }

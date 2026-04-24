@@ -78,7 +78,6 @@ local function initializeByteNet(def: any, namespace: "Client" | "Net")
 					for _, middlewareFilter in ipairs(originalDef.Middleware) do
 						local sender = player :: Player
 						if not middlewareFilter(sender, data) then
-							print("no")
 							return
 						end
 					end
