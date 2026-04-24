@@ -17,6 +17,7 @@ local Logger = Vendors.Logger
 local Promise = Vendors.Promise
 local ByteNet = Vendors.ByteNet
 local Sift = Vendors.Sift
+local Signal = Vendors.Signal
 
 local ControllerManager = Core.ControllerManager
 local ServiceManager = Core.ServiceManager
@@ -35,6 +36,7 @@ Loom.ByteNet = ByteNet
 Loom.Promise = Promise
 Loom.Sift = Sift
 Loom.Logger = Logger
+Loom.Signal = Signal
 
 Loom.Enums = {
 	Reliability = Enums.ReliabilityTypeEnum,

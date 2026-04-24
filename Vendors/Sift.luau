@@ -1,4 +1,5 @@
 --!strict
+
 local LoomRoot = script.Parent.Parent
 local Sift = require(LoomRoot.roblox_packages.sift)
 
