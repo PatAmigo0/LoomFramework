@@ -9,6 +9,15 @@ local Sift = require(LoomRoot.Vendors.Sift)
 
 local LoomComponent = {}
 
+local IGNORED_KEYS = {
+	"LoomInit",
+	"LoomStart",
+	"LoomDestroy",
+	"Tag",
+	"Ancestors",
+	"Extensions",
+}
+
 function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes.ComponentClass<T, Instance>
 	local Comp = Component.new({
 		Tag = def.Tag,
@@ -42,8 +51,8 @@ function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes
 		self.Trove:Clean()
 	end
 
-	for key, value in pairs((def :: any)(def :: any)) do
-		if type(value) == "function" and not Sift.Array.has({ "LoomInit", "LoomStart", "LoomDestroy" }, key) then
+	for key, value in pairs(def) do
+		if not Sift.Array.has(IGNORED_KEYS, key) then
 			Comp[key] = value
 		end
 	end

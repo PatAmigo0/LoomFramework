@@ -9,6 +9,7 @@ export type Controller<T = any> = PublicTypes.Controller<T>
 
 export type ComponentInstance<T, I = Instance> = PublicTypes.ComponentInstance<T, I>
 export type ComponentClass<T, I = Instance> = PublicTypes.ComponentClass<T, I>
+export type ComponentDef<T = {}, I = Instance> = PublicTypes.ComponentDef<T, I>
 
 export type ReliabilityEnum = PublicTypes.ReliabilityEnum
 export type NetworkNamespaceEnum = PublicTypes.NetworkNamespaceEnum

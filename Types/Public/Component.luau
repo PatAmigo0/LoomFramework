@@ -6,14 +6,21 @@ local Trove = require(LoomRoot.Vendors.Trove)
 local Promise = require(LoomRoot.Vendors.Promise)
 local Signal = require(LoomRoot.Vendors.Signal)
 
-export type ComponentDef = {
+export type ComponentDef<T = {}, I = Instance> = T & {
 	Tag: string,
 	Ancestors: { Instance }?,
 	Extensions: { any }?,
 
-	LoomInit: ((self: any) -> ())?,
-	LoomStart: ((self: any) -> ())?,
-	LoomDestroy: ((self: any) -> ())?,
+	LoomInit: ((self: ComponentInstance<T, I>) -> ())?,
+	LoomStart: ((self: ComponentInstance<T, I>) -> ())?,
+	LoomDestroy: ((self: ComponentInstance<T, I>) -> ())?,
+
+	Construct: ((self: ComponentInstance<T, I>) -> ())?,
+	Start: ((self: ComponentInstance<T, I>) -> ())?,
+	Stop: ((self: ComponentInstance<T, I>) -> ())?,
+	HeartbeatUpdate: ((self: ComponentInstance<T, I>, dt: number) -> ())?,
+	SteppedUpdate: ((self: ComponentInstance<T, I>, dt: number) -> ())?,
+	RenderSteppedUpdate: ((self: ComponentInstance<T, I>, dt: number) -> ())?,
 }
 
 export type ComponentInstance<T, I = Instance> = T & {
