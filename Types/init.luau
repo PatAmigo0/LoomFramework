@@ -7,6 +7,9 @@ local PublicTypes = require(script.Public)
 export type Service<T = any> = PublicTypes.Service<T>
 export type Controller<T = any> = PublicTypes.Controller<T>
 
+export type ComponentInstance<T, I = Instance> = PublicTypes.ComponentInstance<T, I>
+export type ComponentClass<T, I = Instance> = PublicTypes.ComponentClass<T, I>
+
 export type ReliabilityEnum = PublicTypes.ReliabilityEnum
 export type NetworkNamespaceEnum = PublicTypes.NetworkNamespaceEnum
 
