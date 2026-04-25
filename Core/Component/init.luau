@@ -1,6 +1,7 @@
 --!strict
 
 local LoomRoot = script.Parent.Parent
+local PublicTypes = require(LoomRoot.Types.Public)
 local Component = require(LoomRoot.Vendors.Component)
 local Trove = require(LoomRoot.Vendors.Trove)
 local Logger = require(LoomRoot.Vendors.Logger)
@@ -8,7 +9,7 @@ local Sift = require(LoomRoot.Vendors.Sift)
 
 local LoomComponent = {}
 
-function LoomComponent.Define(def: any)
+function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes.ComponentClass<T, Instance>
 	local Comp = Component.new({
 		Tag = def.Tag,
 		Ancestors = def.Ancestors,
@@ -41,13 +42,13 @@ function LoomComponent.Define(def: any)
 		self.Trove:Clean()
 	end
 
-	for key, value in pairs(def) do
+	for key, value in pairs((def :: any)(def :: any)) do
 		if type(value) == "function" and not Sift.Array.has({ "LoomInit", "LoomStart", "LoomDestroy" }, key) then
 			Comp[key] = value
 		end
 	end
 
-	return Comp
+	return (Comp :: any) :: PublicTypes.ComponentClass<T, Instance>
 end
 
 return LoomComponent

@@ -39,9 +39,6 @@ Loom.Util = {
 	Sift = Sift,
 	Logger = Logger,
 	Signal = Signal,
-	Component = function(def: any)
-		return ComponentCore.Define(def)
-	end,
 	Trove = Trove,
 }
 
@@ -143,6 +140,10 @@ function Loom.Weave<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): 
 
 		return ControllerManager.Register(newController, additionalParams :: any)
 	end
+end
+
+function Loom.Component<T>(def: T & PublicTypes.ComponentDef): PublicTypes.ComponentClass<T, Instance>
+	return ComponentCore.Define(def :: any) :: any
 end
 
 function Loom.Resolve(name: string): any
