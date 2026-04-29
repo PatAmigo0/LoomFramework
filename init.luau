@@ -10,6 +10,7 @@ local PrivateTypes = require(script.Types.Private)
 local PublicTypes = require(script.Types.Public)
 local Enums = require(script.Enums)
 local Middleware = require(script.Middleware)
+local Decorators = require(script.Decorators)
 local Vendors = require(script.Vendors)
 local Core = require(script.Core)
 
@@ -48,6 +49,7 @@ Loom.Enums = {
 	LoomType = Enums.LoomTypeEnum,
 }
 
+Loom.Decorators = Decorators
 Loom.Middleware = Middleware
 
 Loom.IS_STUDIO = IS_STUDIO
@@ -142,7 +144,7 @@ function Loom.Weave<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): 
 	end
 end
 
-function Loom.Component<T>(def: T & PublicTypes.ComponentDef): PublicTypes.ComponentClass<T, Instance>
+function Loom.Component<T, I>(def: PublicTypes.ComponentDef<T, I>): PublicTypes.ComponentClass<T, I>
 	return ComponentCore.Define(def :: any) :: any
 end
 

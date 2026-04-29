@@ -1,3 +1,5 @@
+--!strict
+
 local function IsAlive(player: Player): boolean
 	local character = player.Character
 	if not character then

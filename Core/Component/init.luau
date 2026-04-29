@@ -16,7 +16,17 @@ local IGNORED_KEYS = {
 	"Tag",
 	"Ancestors",
 	"Extensions",
+	"ShouldConstruct",
+	"ShouldExtend",
 }
+
+local Utils = require(script.Util)
+
+local function wrap(inner, dec)
+	return function(self: any, ...)
+		return dec(self, inner, ...)
+	end
+end
 
 function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes.ComponentClass<T, Instance>
 	local Comp = Component.new({
@@ -24,6 +34,14 @@ function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes
 		Ancestors = def.Ancestors,
 		Extensions = def.Extensions,
 	})
+
+	Comp.Util = Utils
+
+	local decorators = def.Decorators
+	local globalDecorators = nil
+	if decorators then
+		globalDecorators = decorators["*"]
+	end
 
 	function Comp:Construct()
 		self.Trove = Trove.new()
@@ -53,6 +71,24 @@ function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes
 
 	for key, value in pairs(def) do
 		if not Sift.Array.has(IGNORED_KEYS, key) then
+			if type(value) == "function" and decorators then
+				local wrappedMethod = value
+				local keyDecorators = decorators[key]
+
+				if keyDecorators then
+					for i = #keyDecorators, 1, -1 do
+						wrappedMethod = wrap(wrappedMethod, keyDecorators[i])
+					end
+				end
+
+				if globalDecorators then
+					for i = #globalDecorators, 1, -1 do
+						wrappedMethod = wrap(wrappedMethod, globalDecorators[i])
+					end
+				end
+
+				value = wrappedMethod
+			end
 			Comp[key] = value
 		end
 	end
