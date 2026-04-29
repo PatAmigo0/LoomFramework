@@ -1,3 +1,5 @@
+--!strict
+
 local storage: { [Player]: { count: number, startTime: number }? } = {}
 local playerLimits = setmetatable(storage, { __mode = "k" })
 
