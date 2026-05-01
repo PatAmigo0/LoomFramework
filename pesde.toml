@@ -1,5 +1,5 @@
 name = "tohue/loom"
-version = "0.2.0"
+version = "0.3.0"
 description = "custom framework which is using modern luau types and ByteNet for the insane traffic speed"
 authors = ["PatAmigos_0"]
 license = "MIT"

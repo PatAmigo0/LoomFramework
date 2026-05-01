@@ -4,8 +4,9 @@ local PublicTypes = require(script.Public)
 -- local PrivateTypes = require(script.Private)
 
 -- Public
-export type Service<T = any> = PublicTypes.Service<T>
-export type Controller<T = any> = PublicTypes.Controller<T>
+export type LoomSchema<T = {}, N = nil> = PublicTypes.LoomSchema<T, N>
+export type LoomClass<T = {}, N = nil> = PublicTypes.LoomClass<T, N>
+export type LoomNet<Net> = PublicTypes.LoomNet<Net>
 
 export type ComponentInstance<T, I = Instance> = PublicTypes.ComponentInstance<T, I>
 export type ComponentClass<T, I = Instance> = PublicTypes.ComponentClass<T, I>

@@ -9,6 +9,6 @@ local ServiceManager = ManagerBuilder.new({
 	Name = "Service",
 	InitMethod = "LoomInit",
 	StartMethod = "LoomStart",
-}) :: PrivateTypes.LoomManager<PublicTypes.Service>
+}) :: PrivateTypes.LoomManager<PublicTypes.LoomClass<any, any>>
 
 return ServiceManager -- table is already frozen

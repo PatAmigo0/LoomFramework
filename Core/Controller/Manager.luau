@@ -9,6 +9,6 @@ local ControllerManager = ManagerBuilder.new({
 	Name = "Controller",
 	InitMethod = "LoomInit",
 	StartMethod = "LoomStart",
-}) :: PrivateTypes.LoomManager<PublicTypes.Controller>
+}) :: PrivateTypes.LoomManager<PublicTypes.LoomClass<any, any>>
 
 return ControllerManager -- table is already frozen

@@ -1,16 +1,16 @@
 --!strict
 
--- Shape of a ByteNet Schema (read/write objects)
+-- shape of a ByteNet schema (read/write objects)
 export type dataTypeInterface<T> = {
 	write: (value: T) -> (),
 	read: (b: buffer, cursor: number) -> (T, number),
 	length: number?,
 }
 
--- Alias
+-- alias
 export type Schema = dataTypeInterface<any>
 
--- Props for creating a packet
+-- props for creating a packet
 export type PacketProps<T> = {
 	value: dataTypeInterface<T>,
 	reliabilityType: ("reliable" | "unreliable")?,
@@ -20,7 +20,7 @@ export type PacketProps<T> = {
 	}?,
 }
 
--- Packet object
+-- packet object
 export type Packet<T> = {
 	sendToAll: (data: T) -> (),
 	sendTo: (data: T, target: Player) -> (),
@@ -37,13 +37,13 @@ export type ByteNet = {
 	definePacket: <T>(props: PacketProps<T>) -> Packet<T>,
 	defineNamespace: <T>(name: string, namespace: () -> T) -> T,
 
-	-- Structure creators
+	-- structure creators
 	struct: <T>(format: T) -> dataTypeInterface<any>,
 	array: <T>(value: dataTypeInterface<T>) -> dataTypeInterface<{ [number]: T }>,
 	optional: <T>(value: dataTypeInterface<T>) -> dataTypeInterface<T?>,
 	map: <K, V>(key: dataTypeInterface<K>, value: dataTypeInterface<V>) -> dataTypeInterface<{ [K]: V }>,
 
-	-- Primitive Schemas
+	-- primitive schemas
 	bool: dataTypeInterface<boolean>,
 	string: dataTypeInterface<string>,
 	buff: dataTypeInterface<buffer>,
@@ -52,7 +52,7 @@ export type ByteNet = {
 	vec3: dataTypeInterface<Vector3>,
 	vec2: dataTypeInterface<Vector2>,
 
-	-- Numeric Schemas
+	-- numeric schemas
 	uint8: dataTypeInterface<number>,
 	uint16: dataTypeInterface<number>,
 	uint32: dataTypeInterface<number>,
@@ -62,7 +62,7 @@ export type ByteNet = {
 	float32: dataTypeInterface<number>,
 	float64: dataTypeInterface<number>,
 
-	-- Special
+	-- special
 	nothing: dataTypeInterface<nil>,
 	unknown: dataTypeInterface<unknown>,
 }

@@ -23,8 +23,6 @@ local Trove = Vendors.Trove
 
 local ControllerManager = Core.ControllerManager
 local ServiceManager = Core.ServiceManager
-local Service = Core.Service
-local Controller = Core.Controller
 local ComponentCore = Core.Component
 -- ==========================================
 -- ENVIRONMENT & EXPORTS
@@ -58,12 +56,12 @@ Loom.IS_SERVER = IS_SERVER
 -- ==========================================
 -- INTERNAL UTILITIES
 -- ==========================================
-local function initializeByteNet(def: any, namespace: "Client" | "Net")
-	if not def.Client then
+local function initializeByteNet(def: any)
+	if not def.Net then
 		return
 	end
 
-	local clientMap = def.Client :: any
+	local clientMap = def.Net :: any
 	local registeredPackets = ByteNet.defineNamespace(def.Name, function()
 		return Sift.Dictionary.map(clientMap, function(packetDef)
 			return ByteNet.definePacket({
@@ -97,10 +95,7 @@ local function initializeByteNet(def: any, namespace: "Client" | "Net")
 		return table.freeze(customPacket)
 	end)
 
-	def[namespace] = clientMap
-	if namespace ~= Enums.NetworkNamespaceEnum.Client then
-		Sift.Dictionary.removeKey(def, Enums.NetworkNamespaceEnum.Client)
-	end
+	def.Net = clientMap
 end
 
 local function injectUtilities(item: any)
@@ -114,33 +109,43 @@ end
 -- PUBLIC API: SCHEMAS & DEFINITIONS
 -- ==========================================
 
---- Use with **!strict** enabled
---- Helps to make sure that your schema definition is correct
-function Loom.Define<T>(def: T & PrivateTypes.LoomDef): T & PrivateTypes.LoomDef
-	return def :: any
+function Loom.Define<T, N>(def: PublicTypes.LoomSchema<T, N>, net: N?): PublicTypes.LoomSchema<T, N>
+	if net then
+		def.Net = net
+	end
+
+	return def
 end
 
 function Loom.Packet<T>(packetDef: PrivateTypes.PacketDef<T>): PrivateTypes.Packet<T>
 	return packetDef :: any
 end
 
+function Loom.Unseal<T>(schema: any): T
+	return schema :: any
+end
+
+function Loom.VerifyNetSchema<N>(net: N): N
+	for key, packet in pairs(net :: any) do
+		local typedPacket = packet :: PrivateTypes.PacketDef<any>
+		if key ~= "Middleware" and (type(typedPacket) ~= "table" or not typedPacket.Schema) then
+			error(`Key '{key}' is not a ByteNet Packet, verify failed`)
+		end
+	end
+
+	return net
+end
 -- ==========================================
 -- PUBLIC API: LIFECYCLE & INJECTION
 -- ==========================================
 
-function Loom.Weave<T, P>(def: T & PrivateTypes.LoomDef, additionalParams: P?): any
+function Loom.Weave<T, N>(schema: PublicTypes.LoomSchema<T, N>): PublicTypes.LoomClass<T, N>
+	initializeByteNet(schema)
+	injectUtilities(schema)
 	if IS_SERVER then
-		initializeByteNet(def :: any, Enums.NetworkNamespaceEnum.Client)
-		local newService = Service.new(def)
-		injectUtilities(newService)
-
-		return ServiceManager.Register(newService, additionalParams :: any)
+		return ServiceManager.Register(schema) :: any
 	else
-		initializeByteNet(def, Enums.NetworkNamespaceEnum.Net)
-		local newController = Controller.new(def)
-		injectUtilities(newController)
-
-		return ControllerManager.Register(newController, additionalParams :: any)
+		return ControllerManager.Register(schema) :: any
 	end
 end
 
@@ -151,11 +156,11 @@ end
 function Loom.Resolve(name: string): any
 	if IS_SERVER then
 		return ServiceManager.Get(name)
+	else
+		return ControllerManager.Get(name)
 	end
-	return ControllerManager.Get(name)
 end
 
---
 function Loom.Spin()
 	return Promise.new(function(resolve)
 		if IS_SERVER then
