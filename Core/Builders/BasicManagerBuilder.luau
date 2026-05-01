@@ -41,7 +41,7 @@ local function normalizeItem(item: PublicTypes.LoomSchema)
 	end
 end
 
-local function fillItem(item: PrivateTypes.LoomMember, params: PrivateTypes.AnyTable?)
+local function fillItem(item: PublicTypes.LoomSchema, params: PrivateTypes.AnyTable?)
 	if not params then
 		return
 	end
