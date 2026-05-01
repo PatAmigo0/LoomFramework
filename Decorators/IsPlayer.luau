@@ -15,7 +15,7 @@ return function(shouldBeAlive: boolean?)
 				local humanoid = character:FindFirstChildOfClass("Humanoid")
 
 				if humanoid and humanoid.Health > 0 then
-					callback(self, ...)
+					callback(self, part, player, ...)
 				end
 			end
 		end
