@@ -1,7 +1,8 @@
 --!strict
-local LoomRoot = script.Parent.Parent.Parent.Parent -- script.__sys__.Builders.Core.Loom
+local LoomRoot = script.Parent.Parent.Parent -- script.__sys__.Builders.Core.Loom
 
 local PrivateTypes = require(LoomRoot.Types.Private)
+local PublicTypes = require(LoomRoot.Types.Public)
 local Logger = require(LoomRoot.Vendors.Logger)
 local Promise = require(LoomRoot.Vendors.Promise)
 local Sift = require(LoomRoot.Vendors.Sift)
@@ -34,7 +35,7 @@ local function runLifecycle(item: any, methodName: string): boolean
 	return true
 end
 
-local function normalizeItem(item: PrivateTypes.LoomMember)
+local function normalizeItem(item: PublicTypes.LoomSchema)
 	if not item.Priority then
 		item.Priority = 0
 	end
@@ -63,9 +64,9 @@ function ManagerBuilder._buildManager<T>(options: PrivateTypes.BuilderOptions): 
 	local StartMethod = options.StartMethod or "LoomStart"
 
 	local Manager = {}
-	local items: { [string]: T & PrivateTypes.LoomMember } = {}
+	local items: { [string]: PublicTypes.LoomSchema } = {}
 
-	function Manager.Register(item: T & PrivateTypes.LoomMember, params: PrivateTypes.AnyTable?): T
+	function Manager.Register<I>(item: I, params: any?): I
 		local member = item :: any
 
 		if items[member.Name] then
@@ -75,11 +76,11 @@ function ManagerBuilder._buildManager<T>(options: PrivateTypes.BuilderOptions): 
 		normalizeItem(member)
 		fillItem(member, params)
 
-		items[member.Name] = item
+		items[member.Name] = member
 		return item
 	end
 
-	function Manager.Get(name: string): T?
+	function Manager.Get(name: string): PublicTypes.LoomSchema?
 		local item = items[name]
 		if not item then
 			error(`Couldn't find {ModuleName}: {name}`)

@@ -25,9 +25,9 @@ export type ComponentDef<T = {}, I = Instance> = T & {
 	LoomStart: ((self: ComponentInstance<T, I>) -> ())?,
 	LoomDestroy: ((self: ComponentInstance<T, I>) -> ())?,
 
-	Construct: ((self: ComponentInstance<T, I>) -> ())?,
-	Start: ((self: ComponentInstance<T, I>) -> ())?,
-	Stop: ((self: ComponentInstance<T, I>) -> ())?,
+	-- Construct: ((self: ComponentInstance<T, I>) -> ())?,
+	-- Start: ((self: ComponentInstance<T, I>) -> ())?,
+	-- Stop: ((self: ComponentInstance<T, I>) -> ())?,
 	HeartbeatUpdate: ((self: ComponentInstance<T, I>, dt: number) -> ())?,
 	SteppedUpdate: ((self: ComponentInstance<T, I>, dt: number) -> ())?,
 	RenderSteppedUpdate: ((self: ComponentInstance<T, I>, dt: number) -> ())?,

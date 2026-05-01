@@ -1,13 +1,13 @@
 --!strict
 
-local ServiceModule = require(script.Service)
-local ControllerModule = require(script.Controller)
 local ComponentModule = require(script.Component)
 local EnumsModule = require(script.Enums)
 local VendorsModule = require(script.Vendors)
+local LoomSchema = require(script.LoomSchema)
 
-export type Service<T = any> = ServiceModule.Service<T>
-export type Controller<T = any> = ControllerModule.Controller<T>
+export type LoomSchema<T = {}, N = nil> = LoomSchema.LoomSchema<T, N>
+export type LoomClass<T = {}, N = nil> = LoomSchema.LoomClass<T, N>
+export type LoomNet<Net> = LoomSchema.LoomNet<Net>
 
 export type ComponentInstance<T, I = Instance> = ComponentModule.ComponentInstance<T, I>
 export type ComponentClass<T, I = Instance> = ComponentModule.ComponentClass<T, I>

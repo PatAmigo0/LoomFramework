@@ -12,8 +12,8 @@ export type CallbackBehavior = {
 }
 
 export type PacketDef<T> = {
-	ReliabilityType: ReliabilityType,
 	Schema: ByteNetLib.dataTypeInterface<T>,
+	ReliabilityType: ReliabilityType?,
 	CallbackBehavior: CallbackBehavior?,
 
 	RateLimit: number?,

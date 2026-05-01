@@ -1,7 +1,7 @@
 --!strict
 
-local BasicManagerBuilder = require(script.__sys__)
+local BasicManagerBuilder = require(script.BasicManagerBuilder)
 
-local Builders = { ManagerBuilder = BasicManagerBuilder.ManagerBuilder }
+local Builders = { ManagerBuilder = BasicManagerBuilder }
 
 return table.freeze(Builders)
