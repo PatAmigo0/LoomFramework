@@ -1,4 +1,5 @@
 --!strict
+
 local TableTypes = require(script.Parent.Table)
 
 export type LoomManager<BaseType> = {

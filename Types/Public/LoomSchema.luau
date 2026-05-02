@@ -1,3 +1,5 @@
+--!strict
+
 local LoomRoot = script.Parent.Parent.Parent -- Loom/Types/Public/Service.luau
 local Logger = require(LoomRoot.Types.Public.Vendors.Logger)
 local Trove = require(LoomRoot.Vendors.Trove)
