@@ -22,4 +22,7 @@ export type LogItem = VendorsModule.LogItem
 export type Signal<T...> = VendorsModule.Signal<T...>
 export type Connection = VendorsModule.Connection
 
+export type Promise = VendorsModule.Promise
+export type TypedPromise<T> = VendorsModule.TypedPromise<T>
+
 return nil

@@ -21,6 +21,9 @@ export type LogItem = PublicTypes.LogItem
 export type Signal<T...> = PublicTypes.Signal<T...>
 export type Connection = PublicTypes.Connection
 
+export type Promise = PublicTypes.Promise
+export type TypedPromise<T> = PublicTypes.TypedPromise<T>
+
 -- Private
 -- export type LoomMember = PrivateTypes.LoomMember
 -- export type LoomManager<T> = PrivateTypes.LoomManager<T>
