@@ -11,7 +11,7 @@ export type LoomNet<Net> = LoomSchema.LoomNet<Net>
 
 export type ComponentInstance<T, I = Instance> = ComponentModule.ComponentInstance<T, I>
 export type ComponentClass<T, I = Instance> = ComponentModule.ComponentClass<T, I>
-export type ComponentDef<T = {}, I = Instance> = ComponentModule.ComponentDef<T, I>
+export type ComponentSchema<T = {}, I = Instance> = ComponentModule.ComponentSchema<T, I>
 
 export type ReliabilityEnum = EnumsModule.ReliabilityTypeEnum
 export type NetworkNamespaceEnum = EnumsModule.NetworkNamespaceEnum

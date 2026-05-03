@@ -3,6 +3,17 @@
 local LoomRoot = script.Parent.Parent
 local ByteNetLib = require(LoomRoot.Types.Public.Vendors.ByteNetLib)
 
-local ByteNet = require(LoomRoot.roblox_packages.bytenet) :: any
+local OriginalByteNet = require(LoomRoot.roblox_packages.bytenet) :: any
 
-return ByteNet :: ByteNetLib.ByteNet -- bytenet is already frozen via table.freeze
+local CustomByteNet = table.clone(OriginalByteNet)
+
+-- patching bytenet
+CustomByteNet.struct = function(format)
+	local lazyStruct = function()
+		return OriginalByteNet.struct(format)
+	end
+
+	return (lazyStruct :: any) :: ByteNetLib.dataTypeInterface<any>
+end
+
+return table.freeze(CustomByteNet :: any) :: ByteNetLib.ByteNet
