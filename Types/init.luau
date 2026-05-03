@@ -8,7 +8,7 @@ export type LoomNet<Net> = PublicTypes.LoomNet<Net>
 
 export type ComponentInstance<T, I = Instance> = PublicTypes.ComponentInstance<T, I>
 export type ComponentClass<T, I = Instance> = PublicTypes.ComponentClass<T, I>
-export type ComponentDef<T = {}, I = Instance> = PublicTypes.ComponentDef<T, I>
+export type ComponentSchema<T = {}, I = Instance> = PublicTypes.ComponentSchema<T, I>
 
 export type ReliabilityEnum = PublicTypes.ReliabilityEnum
 export type NetworkNamespaceEnum = PublicTypes.NetworkNamespaceEnum

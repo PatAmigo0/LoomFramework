@@ -14,7 +14,7 @@ export type ComponentUtils = {
 	IsAlive: (player: Player) -> boolean,
 }
 
-export type ComponentDef<T = {}, I = Instance> = T & {
+export type ComponentSchema<T = {}, I = Instance> = T & {
 	Tag: string,
 	Ancestors: { Instance }?,
 	Extensions: { any }?,
