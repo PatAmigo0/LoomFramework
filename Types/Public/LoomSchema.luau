@@ -1,9 +1,9 @@
 --!strict
 
-local LoomRoot = script.Parent.Parent.Parent -- Loom/Types/Public/Service.luau
+local LoomRoot = script.Parent.Parent.Parent
 local Logger = require(LoomRoot.Types.Public.Vendors.Logger)
 local Trove = require(LoomRoot.Vendors.Trove)
-local ByteNetLibTypes = require(script.Parent.Parent.Parent.Types.Private.Vendors.ByteNetLib)
+local ByteNetLibTypes = require(LoomRoot.Types.Public.Vendors.ByteNetLib)
 
 export type LoomNet<Net> = {
 	Middleware: { (player: Player, data: any) -> boolean }?,

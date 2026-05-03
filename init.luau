@@ -24,6 +24,7 @@ local Trove = Vendors.Trove
 local ControllerManager = Core.ControllerManager
 local ServiceManager = Core.ServiceManager
 local ComponentCore = Core.Component
+
 -- ==========================================
 -- ENVIRONMENT & EXPORTS
 -- ==========================================
@@ -68,13 +69,13 @@ local function initializeByteNet(def: any)
 				value = packetDef.Schema,
 				reliabilityType = packetDef.ReliabilityType,
 				callbackBehavior = packetDef.CallbackBehavior,
-			} :: PrivateTypes.ByteNetPacket<any>)
-		end) :: { [string]: PrivateTypes.Packet<any> }
+			} :: PublicTypes.ByteNetPacket<any>)
+		end) :: { [string]: PublicTypes.Packet<any> }
 	end)
 
 	clientMap = Sift.Dictionary.map(registeredPackets, function(packet, methodName)
 		local originalDef = clientMap[methodName] :: PrivateTypes.PacketDef<any>
-		local normalizedPacket: PrivateTypes.Packet<any> = type(packet) == "function" and packet() or packet
+		local normalizedPacket: PublicTypes.Packet<any> = type(packet) == "function" and packet() or packet
 		local customPacket = table.clone(normalizedPacket)
 
 		if IS_SERVER and originalDef.Middleware then
@@ -108,7 +109,6 @@ end
 -- ==========================================
 -- PUBLIC API: SCHEMAS & DEFINITIONS
 -- ==========================================
-
 function Loom.Define<T, N>(def: PublicTypes.LoomSchema<T, N>, net: N?): PublicTypes.LoomSchema<T, N>
 	if net then
 		def.Net = net
@@ -117,7 +117,7 @@ function Loom.Define<T, N>(def: PublicTypes.LoomSchema<T, N>, net: N?): PublicTy
 	return def
 end
 
-function Loom.Packet<T>(packetDef: PrivateTypes.PacketDef<T>): PrivateTypes.Packet<T>
+function Loom.Packet<T>(packetDef: PrivateTypes.PacketDef<T>): PublicTypes.Packet<T>
 	return packetDef :: any
 end
 
