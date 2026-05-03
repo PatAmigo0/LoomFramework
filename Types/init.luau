@@ -1,9 +1,7 @@
 --!strict
 
 local PublicTypes = require(script.Public)
--- local PrivateTypes = require(script.Private)
 
--- Public
 export type LoomSchema<T = {}, N = nil> = PublicTypes.LoomSchema<T, N>
 export type LoomClass<T = {}, N = nil> = PublicTypes.LoomClass<T, N>
 export type LoomNet<Net> = PublicTypes.LoomNet<Net>
@@ -24,15 +22,11 @@ export type Connection = PublicTypes.Connection
 export type Promise = PublicTypes.Promise
 export type TypedPromise<T> = PublicTypes.TypedPromise<T>
 
--- Private
--- export type LoomMember = PrivateTypes.LoomMember
--- export type LoomManager<T> = PrivateTypes.LoomManager<T>
--- export type BuilderOptions = PrivateTypes.BuilderOptions
-
--- Lib Types
--- export type ByteNetSchema = PrivateTypes.ByteNetSchema
--- export type ByteNetPacket<T> = PrivateTypes.ByteNetPacket<T>
--- export type ByteNet = PrivateTypes.ByteNet
--- export type Packet<T> = PrivateTypes.Packet<T>
+-- ByteNet
+export type ByteNetInterface<T> = PublicTypes.ByteNetInterface<T>
+export type ByteNetSchema = PublicTypes.ByteNetSchema
+export type ByteNetPacket<T> = PublicTypes.ByteNetPacket<T>
+export type ByteNet = PublicTypes.ByteNet
+export type Packet<T> = PublicTypes.Packet<T>
 
 return nil
