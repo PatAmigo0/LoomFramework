@@ -28,7 +28,7 @@ local function wrap(inner, dec)
 	end
 end
 
-function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes.ComponentClass<T, Instance>
+function LoomComponent.Define<T, I>(def: PublicTypes.ComponentSchema<T, I>): PublicTypes.ComponentClass<T, I>
 	local Comp = Component.new({
 		Tag = def.Tag,
 		Ancestors = def.Ancestors,
@@ -93,7 +93,7 @@ function LoomComponent.Define<T>(def: T & PublicTypes.ComponentDef): PublicTypes
 		end
 	end
 
-	return (Comp :: any) :: PublicTypes.ComponentClass<T, Instance>
+	return (Comp :: any) :: PublicTypes.ComponentClass<T, I>
 end
 
 return LoomComponent

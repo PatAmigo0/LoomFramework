@@ -65,8 +65,14 @@ local function initializeByteNet(def: any)
 	local clientMap = def.Net :: any
 	local registeredPackets = ByteNet.defineNamespace(def.Name, function()
 		return Sift.Dictionary.map(clientMap, function(packetDef)
+			local schema = packetDef.Schema
+
+			if type(schema) == "function" then
+				schema = schema()
+			end
+
 			return ByteNet.definePacket({
-				value = packetDef.Schema,
+				value = schema,
 				reliabilityType = packetDef.ReliabilityType,
 				callbackBehavior = packetDef.CallbackBehavior,
 			} :: PublicTypes.ByteNetPacket<any>)
@@ -149,7 +155,7 @@ function Loom.Weave<T, N>(schema: PublicTypes.LoomSchema<T, N>): PublicTypes.Loo
 	end
 end
 
-function Loom.Component<T, I>(def: PublicTypes.ComponentDef<T, I>): PublicTypes.ComponentClass<T, I>
+function Loom.Component<T, I>(def: PublicTypes.ComponentSchema<T, I>): PublicTypes.ComponentClass<T, I>
 	return ComponentCore.Define(def :: any) :: any
 end
 
