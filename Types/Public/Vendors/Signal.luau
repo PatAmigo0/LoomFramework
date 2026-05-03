@@ -1,4 +1,5 @@
 --!strict
+
 local LoomRoot = script.Parent.Parent.Parent.Parent
 local Signal = require(LoomRoot.Vendors.Signal)
 

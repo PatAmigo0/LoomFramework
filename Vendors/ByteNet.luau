@@ -1,7 +1,7 @@
 --!strict
 
 local LoomRoot = script.Parent.Parent
-local ByteNetLib = require(LoomRoot.Types.Private.Vendors.ByteNetLib)
+local ByteNetLib = require(LoomRoot.Types.Public.Vendors.ByteNetLib)
 
 local ByteNet = require(LoomRoot.roblox_packages.bytenet) :: any
 

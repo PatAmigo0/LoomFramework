@@ -1,8 +1,7 @@
 --!strict
 
 local LoomRoot = script.Parent.Parent.Parent.Parent
-
-local ByteNetLib = require(LoomRoot.Types.Private.Vendors.ByteNetLib)
+local ByteNetLib = require(LoomRoot.Types.Public.Vendors.ByteNetLib)
 
 export type ReliabilityType = "reliable" | "unreliable"
 
