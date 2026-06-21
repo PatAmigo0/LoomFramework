@@ -82,10 +82,13 @@ local function initializeByteNet(def: any)
 	clientMap = Sift.Dictionary.map(registeredPackets, function(packet, methodName)
 		local originalDef = clientMap[methodName] :: PrivateTypes.PacketDef<any>
 		local normalizedPacket: PublicTypes.Packet<any> = type(packet) == "function" and packet() or packet
-		local customPacket = table.clone(normalizedPacket)
+
+		local customPacket = setmetatable({}, {
+			__index = normalizedPacket,
+		})
 
 		if IS_SERVER and originalDef.Middleware then
-			local originalListen = customPacket.listen
+			local originalListen = normalizedPacket.listen
 			customPacket.listen = function(callback)
 				originalListen(function(data, player)
 					for _, middlewareFilter in ipairs(originalDef.Middleware) do
