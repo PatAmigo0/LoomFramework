@@ -53,7 +53,10 @@ The typed contract, one type per service:
 
 ```lua
 -- ServerScriptService/ServerAPI.luau
-export type ShopService = Types.Service<{
+local Loom = require(Packages.loom)
+local ShopServiceDef = require(ReplicatedStorage.Shared.Schemas.ShopService)
+
+export type ShopService = Loom.Service<{
 	Buy: (self: ShopService, player: Player, item: string) -> (),
 }, typeof(ShopServiceDef.Net)>
 
@@ -285,7 +288,9 @@ Loom reads an optional `ReplicatedStorage.LoomConfig` module. Every field is opt
 local RunService = game:GetService("RunService")
 local IS_STUDIO = RunService:IsStudio()
 
-local config: Types.LoomConfig = {
+local Loom = require(ReplicatedStorage.Packages.loom)
+
+local config: Loom.LoomConfig = {
 	Log = {
 		Level = if IS_STUDIO then "Debug" else "Warn",
 		Overrides = { ShopService = "Trace" },
@@ -313,7 +318,7 @@ The module is read the first time Loom needs a setting, so it may require Loom.
 
 ## Types
 
-All public types are exported from the `Types` module.
+`require(Packages.loom)` exports every public type, e.g. `Loom.Service<M, N>`. They are defined in Loom's `Types` module.
 
 | Type | Description |
 |---|---|

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 (2026-10-11)
+
+- `init.luau` re-exports every public type from `Types`, so `local Loom = require(Packages.loom)` gives `Loom.Service<M, N>`, `Loom.LoomConfig` and the rest. pesde's package link only forwards the types the main module exports, so a pesde install couldn't reach them before without a path that includes the version. `Types` is still where they're defined.
+- A README with the API reference, included in the package.
+
 ## 0.5.1 (2026-10-11)
 
 No behaviour changes. Comments say what each function does, and the core modules are split into `--#region` blocks (TYPES, STATE, LOCAL, API; Config also has DEFAULTS) so the helpers fold away. `Types` uses one region per section.
