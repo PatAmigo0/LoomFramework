@@ -10,13 +10,11 @@
 	    return Lamp
 
 	Definition fields other than Tag/Ancestors/Extensions become class members (defaults for every instance).
-	`Decorators` are applied when the first instance is constructed (always after the module has finished
-	defining its methods, since sleitnick's Component defers construction). Named entries wrap their method first,
-	then `"*"` wraps the result.
+	`Decorators` are applied when the first instance is constructed, after the module has defined its methods.
+	Named entries wrap their method first, then `"*"` wraps the result.
 
-	Every instance whose LoomInit ran gets LoomDestroy and a cleaned Trove exactly once: when it stops, or, if it
-	was removed before it could start (the Component library never stops those), right after its start would have
-	run. If LoomInit throws, the Trove is cleaned and the instance isn't created.
+	Every instance whose LoomInit ran gets LoomDestroy and a cleaned Trove exactly once, including instances
+	removed before they started. If LoomInit throws, the Trove is cleaned and the instance isn't created.
 ]]
 
 local LoomRoot = script.Parent.Parent
@@ -27,6 +25,7 @@ local Debugger = require(script.Parent.Debugger)
 local Decorate = require(script.Parent.Decorate)
 local Util = require(script.Util)
 
+--#region TYPES
 -- A component instance, as far as Loom is concerned.
 type Object = {
 	Instance: Instance,
@@ -56,7 +55,9 @@ type ClassHooks = {
 type Class = {
 	FromInstance: (self: Class, instance: Instance) -> unknown,
 }
+--#endregion
 
+--#region STATE
 local function set(keys: { string }): { [string]: true }
 	local result: { [string]: true } = {}
 	for _, key in keys do
@@ -68,8 +69,8 @@ end
 -- Definition keys that configure the class instead of becoming members.
 local CONFIG_KEYS = set({ "Tag", "Ancestors", "Extensions" })
 
--- Functions on the class that `"*"` decorators skip: lifecycle hooks, per-frame updates (a `"*"` Cooldown or
--- Once would throttle or stop them) and the Component library's plumbing. Decorate them by name if you mean to.
+-- Functions `"*"` decorators skip: lifecycle hooks, per-frame updates and the Component library's own. Name them
+-- in `Decorators` to decorate them.
 local NOT_METHODS = set({
 	"LoomInit",
 	"LoomStart",
@@ -83,9 +84,10 @@ local NOT_METHODS = set({
 	"__index",
 	"__tostring",
 })
+--#endregion
 
--- Runs a hook; returns its error with a traceback if it threw. (xpcall's own results are typed from the hook's
--- returns, and a hook returns nothing, so there would be no typed slot for the error.)
+--#region LOCAL
+-- Runs a hook; returns its error, with a traceback, if it threw.
 local function try(hook: Hook, self: Object): string?
 	local failure: string? = nil
 	xpcall(hook, function(err: unknown)
@@ -94,8 +96,7 @@ local function try(hook: Hook, self: Object): string?
 	return failure
 end
 
--- Works out every decorated method before replacing any, so a bad entry fails the same way for every instance
--- instead of leaving the class half decorated.
+-- Applies a class's `Decorators`. Nothing is replaced unless every entry is valid.
 local function applyDecorators(members: { [string]: unknown }, decorators: unknown)
 	if type(decorators) ~= "table" then
 		error("Decorators must be a table of method name = list of decorators", 0)
@@ -124,8 +125,12 @@ local function applyDecorators(members: { [string]: unknown }, decorators: unkno
 	end
 end
 
+--#endregion
+
+--#region API
 local LoomComponent = {}
 
+--- Creates the component class for `definition` (see the header).
 function LoomComponent.Define<S>(definition: S): S
 	local config = definition :: Definition
 	if type(config) ~= "table" or type(config.Tag) ~= "string" then
@@ -150,11 +155,10 @@ function LoomComponent.Define<S>(definition: S): S
 	members.Util = Util
 
 	local decorated = false
-	-- Weak, so instances that are gone don't stay in here.
 	local started = setmetatable({} :: { [Object]: true }, { __mode = "k" })
 	local finished = setmetatable({} :: { [Object]: true }, { __mode = "k" })
 
-	-- LoomDestroy and the Trove clean-up, at most once per instance. The Trove is cleaned even if LoomDestroy throws.
+	-- Runs LoomDestroy and cleans the Trove, once per instance. The Trove is cleaned even if LoomDestroy throws.
 	local function finish(self: Object)
 		if finished[self] then
 			return
@@ -169,6 +173,7 @@ function LoomComponent.Define<S>(definition: S): S
 		end
 	end
 
+	-- Finishes an instance that was removed before it started; the Component library never stops those.
 	local function finishIfNeverStarted(self: Object)
 		if not started[self] and api:FromInstance(self.Instance) ~= self then
 			finish(self)
@@ -198,8 +203,7 @@ function LoomComponent.Define<S>(definition: S): S
 			end
 		end
 
-		-- The library schedules Start with task.defer once this returns. Deferring twice runs the check after
-		-- that, when an instance that was removed in between is known never to start.
+		-- The library defers Start until after this returns; deferring twice runs the check after that.
 		task.defer(function()
 			task.defer(finishIfNeverStarted, self)
 		end)
@@ -219,5 +223,7 @@ function LoomComponent.Define<S>(definition: S): S
 
 	return (class :: unknown) :: S
 end
+
+--#endregion
 
 return table.freeze(LoomComponent)

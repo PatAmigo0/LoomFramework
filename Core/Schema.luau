@@ -14,19 +14,21 @@ local LoomRoot = script.Parent.Parent
 local Types = require(LoomRoot.Types)
 local ByteNet = require(LoomRoot.Vendors.ByteNet)
 
+--#region TYPES
 type Builder = () -> unknown
+--#endregion
 
-local Schema = {}
-
---- Turns a schema (a ByteNet data type, or a builder from this module) into a ByteNet data type.
-function Schema.resolve(schema: unknown): unknown
+--#region LOCAL
+-- Turns a schema (a ByteNet data type, or a builder from this module) into a ByteNet data type.
+local function resolve(schema: unknown): unknown
 	if type(schema) == "function" then
 		return (schema :: Builder)()
 	end
 	return schema
 end
 
-function Schema.sortedKeys(dictionary: { [string]: unknown }): { string }
+-- The dictionary's keys, sorted.
+local function sortedKeys(dictionary: { [string]: unknown }): { string }
 	local keys = {}
 	for key in dictionary do
 		table.insert(keys, key)
@@ -35,16 +37,16 @@ function Schema.sortedKeys(dictionary: { [string]: unknown }): { string }
 	return keys
 end
 
--- At runtime a schema is a ByteNet serializer (or a builder of one), but its type is the value it carries;
--- ByteNet's own types work the same way. The `(builder :: unknown) :: T` casts below are where that is bridged.
+-- At runtime a schema is a ByteNet serializer (or a builder of one), but its type is the value it carries, the
+-- same as ByteNet's own types. The `(build :: unknown) :: T` casts below bridge the two.
 
 local function struct<T>(format: T): T
 	local fields = format :: { [string]: unknown }
 
 	local function build(): unknown
 		local resolved = {}
-		for _, key in Schema.sortedKeys(fields) do
-			resolved[key] = Schema.resolve(fields[key])
+		for _, key in sortedKeys(fields) do
+			resolved[key] = resolve(fields[key])
 		end
 		return ByteNet.struct(resolved)
 	end
@@ -54,7 +56,7 @@ end
 
 local function array<T>(value: T): { T }
 	local function build(): unknown
-		return ByteNet.array(Schema.resolve(value))
+		return ByteNet.array(resolve(value))
 	end
 
 	return (build :: unknown) :: { T }
@@ -62,7 +64,7 @@ end
 
 local function optional<T>(value: T): T?
 	local function build(): unknown
-		return ByteNet.optional(Schema.resolve(value))
+		return ByteNet.optional(resolve(value))
 	end
 
 	return (build :: unknown) :: T?
@@ -70,12 +72,15 @@ end
 
 local function map<K, V>(key: K, value: V): { [K]: V }
 	local function build(): unknown
-		return ByteNet.map(Schema.resolve(key), Schema.resolve(value))
+		return ByteNet.map(resolve(key), resolve(value))
 	end
 
 	return (build :: unknown) :: { [K]: V }
 end
 
+--#endregion
+
+--#region API
 local LazyByteNet = {
 	struct = struct,
 	array = array,
@@ -104,8 +109,15 @@ local LazyByteNet = {
 }
 table.freeze(LazyByteNet)
 
+local Schema = {}
+
+--- Turns a schema into a ByteNet data type. Call inside `ByteNet.defineNamespace`.
+Schema.resolve = resolve
+--- A dictionary's keys, sorted.
+Schema.sortedKeys = sortedKeys
 -- A cast, not an annotation: the new solver (luau-lsp 1.66) rejects `optional` against the identical field type
--- ("expected '<T>(T) -> T?', got '<T>(T) -> T?'"). The cast is still checked, just more leniently.
+-- ("expected '<T>(T) -> T?', got '<T>(T) -> T?'").
 Schema.ByteNet = LazyByteNet :: Types.ByteNet
+--#endregion
 
 return table.freeze(Schema)

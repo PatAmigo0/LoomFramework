@@ -1,13 +1,11 @@
 --!strict
 --[[
-	Packets. `Loom.Packet` returns the real packet straight away: `listen`/`wait` work immediately, and the send
-	functions start working when the service/controller that owns the packet is spun up (`Loom.Spin`), which is
-	when its ByteNet namespace gets built. Until then they error with a clear message instead of failing silently.
+	Packets. `Loom.Packet` returns the packet right away: `listen` and `wait` work at once, and the send functions
+	work once `Loom.Spin` has connected the service or controller that owns the packet. Sending before that errors.
 
-	Each packet has a single ByteNet listener. On the server it runs the packet's checks once per packet, in this
-	order: its rate limit (`RateLimit`, or `LoomConfig.Net.RateLimit`), `LoomConfig.Net.Middleware`, then its own
-	`Middleware`. The first check that returns false drops the packet. Then it hands the data to Loom's listeners:
-	called directly when there is only one (no extra thread), spawned when there are several.
+	On the server every incoming packet runs through its checks in this order: its rate limit (`RateLimit`, or
+	`LoomConfig.Net.RateLimit`), `LoomConfig.Net.Middleware`, then its own `Middleware`. The first check that
+	returns false drops the packet; otherwise it goes to every listener.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,6 +19,7 @@ local Debugger = require(script.Parent.Debugger)
 local Schema = require(script.Parent.Schema)
 local RateLimit = require(LoomRoot.Middleware.RateLimit)
 
+--#region TYPES
 type Packet<T> = Types.Packet<T>
 type PacketDef<T> = Types.PacketDef<T>
 type Connection = Types.Connection
@@ -54,21 +53,24 @@ type PacketState = {
 	attach: (raw: RawPacket, label: string) -> (),
 	attached: boolean,
 }
+--#endregion
 
+--#region STATE
 local IS_SERVER = RunService:IsServer()
 
+-- Loom.Packet -> its state.
 local states: { [unknown]: PacketState } = {}
+--#endregion
 
+--#region LOCAL
+-- A function that always errors with `message`, for send functions that can't be used (yet).
 local function failing(message: string): (...unknown) -> ()
 	return function()
 		error(message, 2)
 	end
 end
 
-local Net = {}
-
--- Checks what the type checker already does, for code it doesn't see (nonstrict files, casts). Errors point at the
--- `Loom.Packet` call.
+-- Errors, pointing at the `Loom.Packet` call, when a packet definition is invalid.
 local function checkDefinition(definition: unknown)
 	if type(definition) ~= "table" then
 		error("Loom.Packet expects a table", 4)
@@ -78,7 +80,7 @@ local function checkDefinition(definition: unknown)
 	if fields.Schema == nil then
 		error("Loom.Packet: Schema is missing", 4)
 	end
-	-- ByteNet treats anything other than "reliable" as unreliable, so a typo would silently drop reliability.
+	-- ByteNet would treat any other value, typos included, as "unreliable".
 	local reliability = fields.ReliabilityType
 	if reliability ~= nil and reliability ~= "reliable" and reliability ~= "unreliable" then
 		error(`Loom.Packet: ReliabilityType must be "reliable" or "unreliable", got {reliability}`, 4)
@@ -103,8 +105,7 @@ local function checkDefinition(definition: unknown)
 	end
 end
 
--- The server-side checks for one packet, in the order they run (see the header), with a name for each one that
--- a dropped-packet warning can show. Nil when there are none.
+-- A packet's server-side checks in the order they run, and a name for each (for drop warnings).
 local function buildChecks<T>(definition: PacketDef<T>): ({ Types.Middleware<T> }?, { string })
 	local net = Config.get().Net
 	local checks: { Types.Middleware<T> } = {}
@@ -126,15 +127,20 @@ local function buildChecks<T>(definition: PacketDef<T>): ({ Types.Middleware<T> 
 
 	return if #checks > 0 then checks else nil, names
 end
+--#endregion
 
+--#region API
+local Net = {}
+
+--- Creates a packet. Its send functions start working when `Net.Attach` connects it.
 function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 	checkDefinition(definition)
-	-- Server only, set when the packet is attached.
+	-- Set when the packet is attached (checks only on the server).
 	local checks: { Types.Middleware<T> }? = nil
 	local checkNames: { string } = {}
-	local label = "" -- "Namespace.Key", for warnings
+	local label = "" -- "Namespace.Key"
 	local dropLog: Types.Debugger? = nil
-	-- Replaced (never mutated) on connect/disconnect, so a dispatch in progress keeps a stable list.
+	-- Replaced on every (dis)connect instead of changed in place, so a dispatch already running isn't affected.
 	local listeners: { Listener<T> } = {}
 
 	local function listen(callback: Listener<T>): Connection
@@ -198,7 +204,7 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 
 		local current = listeners
 		if #current == 1 then
-			current[1](value, player) -- already running on a ByteNet listener thread
+			current[1](value, player)
 		else
 			for _, listener in current do
 				task.spawn(listener, value, player)
@@ -261,12 +267,12 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 	return packet
 end
 
+--- Whether `value` was made by `Loom.Packet`.
 function Net.IsPacket(value: unknown): boolean
 	return states[value] ~= nil
 end
 
---- Builds the ByteNet namespace for a service/controller's `Net` and connects its packets. Yields on the
---- client until the server has published the namespace.
+--- Connects a service or controller's packets under its name. On the client, waits for the server to publish them.
 function Net.Attach(namespace: string, net: { [string]: unknown })
 	local keys = Schema.sortedKeys(net)
 	local packetStates: { [string]: PacketState } = {}
@@ -282,14 +288,14 @@ function Net.Attach(namespace: string, net: { [string]: unknown })
 	end
 
 	if not IS_SERVER then
-		-- ByteNet reads the namespace the server published without waiting for it, so wait here.
+		-- ByteNet doesn't wait for the server's namespace itself.
 		local storage = ReplicatedStorage:WaitForChild("BytenetStorage")
 		if not storage:WaitForChild(namespace, Config.get().Net.NamespaceTimeout) then
 			error(`The server never published ByteNet namespace '{namespace}'. Is its service woven?`)
 		end
 	end
 
-	-- ByteNet numbers structs in creation order, so packets are built in the same (sorted) order on both sides.
+	-- ByteNet numbers structs in creation order, so both sides must build packets in the same (sorted) order.
 	local raws = ByteNet.defineNamespace(namespace, function()
 		local definitions = {}
 		for _, key in keys do
@@ -306,5 +312,7 @@ function Net.Attach(namespace: string, net: { [string]: unknown })
 		packetStates[key].attach(raws[key], `{namespace}.{key}`)
 	end
 end
+
+--#endregion
 
 return table.freeze(Net)

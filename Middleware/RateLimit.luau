@@ -14,8 +14,7 @@ return function(maxRequests: number, window: number): (player: Player, data: unk
 		error("RateLimit expects a window above 0 seconds", 2)
 	end
 
-	-- A strong table, cleared when a player leaves, so a limit never depends on when the garbage collector drops
-	-- Instance keys from a weak table.
+	-- player -> their count in the current window. Cleared when they leave.
 	local usage: { [Player]: Usage } = {}
 	if RunService:IsServer() then
 		Players.PlayerRemoving:Connect(function(player)

@@ -9,7 +9,7 @@ local Decorate = require(LoomRoot.Core.Decorate)
 return function<Self>(...: Types.Decorator<Self>): Types.Decorator<Self>
 	local decorators = { ... }
 	Decorate.check(decorators, "Compose", 2)
-	-- callback -> callback wrapped in the whole chain, built once per decorated method.
+	-- callback -> that callback wrapped in the whole chain.
 	local chains = setmetatable({} :: { [unknown]: (...any) -> ...any }, { __mode = "k" })
 
 	return function(self, callback, ...)

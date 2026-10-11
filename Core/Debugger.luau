@@ -6,11 +6,9 @@
 	    self.Debugger:Debug("spawned %d blocks", count)
 	    --> [Debug] LuckyBlockService:SpawnAll: spawned 3 blocks
 
-	Each line names the function that logged. When there are extra arguments the message is a `string.format`
-	pattern, and it's only formatted when the level is on, so a log that's off costs one method call. Luau's `%s`
-	takes only strings and numbers; use `%*` for any other value (tables, nil, booleans, Instances). A pattern that
-	doesn't fit its arguments is printed as is with the reason, so a bad log never throws. A message without
-	arguments is printed as is, `%` included.
+	Each line names the function that logged. With extra arguments the message is a `string.format` pattern; use
+	`%*` for values that aren't strings or numbers. A pattern that doesn't fit its arguments is printed with the
+	reason instead of throwing. A message without arguments is printed as is, `%` included.
 
 	Levels, lowest first: Trace, Debug, Info, Warn, Error, None. They're set in `LoomConfig.Log` (see
 	Types.LoomConfig): a default level, and overrides by service/controller Name or component Tag. Trace, Debug and
@@ -21,8 +19,17 @@ local LoomRoot = script.Parent.Parent
 local Types = require(LoomRoot.Types)
 local Config = require(script.Parent.Config)
 
+--#region TYPES
 type Level = Types.LogLevel
 
+type Object = {
+	Name: string,
+	_instance: Instance?,
+	_level: number,
+}
+--#endregion
+
+--#region STATE
 local LEVELS: { [Level]: number } = {
 	Trace = 1,
 	Debug = 2,
@@ -33,14 +40,10 @@ local LEVELS: { [Level]: number } = {
 }
 table.freeze(LEVELS)
 local TRACE, DEBUG, INFO, WARN, ERROR = 1, 2, 3, 4, 5
+--#endregion
 
-type Object = {
-	Name: string,
-	_instance: Instance?,
-	_level: number,
-}
-
--- Writes one line. Only called once the level check has passed, so the work here never runs for a log that's off.
+--#region LOCAL
+-- Builds one log line: `[Level] Owner:function: message`.
 -- Stack level 3 is the function that called Debug/Info/...: 1 is `emit`, 2 is the level method.
 local function emit(self: Object, label: string, message: string, ...: unknown): string
 	local caller = debug.info(3, "n")
@@ -55,6 +58,9 @@ local function emit(self: Object, label: string, message: string, ...: unknown):
 	return `[{label}] {where}: {text}`
 end
 
+--#endregion
+
+--#region API
 local Debugger = {}
 Debugger.__index = Debugger
 
@@ -94,9 +100,8 @@ end
 
 table.freeze(Debugger)
 
---- A debugger named `name`. Its level comes from `LoomConfig.Log.Overrides[name]`, or `LoomConfig.Log.Level`.
---- `instance` is for component instances: its name is shown next to `name` (read when a line is written, so
---- renames show up), and the level still comes from `name`, the component's Tag.
+--- A debugger named `name`, at `LoomConfig.Log.Overrides[name]` or else `LoomConfig.Log.Level`.
+--- For component instances, `name` is the Tag and `instance` is shown next to it.
 local function new(name: string, instance: Instance?): Types.Debugger
 	if type(name) ~= "string" then
 		error("Debugger.new expects a name", 2)
@@ -109,6 +114,7 @@ local function new(name: string, instance: Instance?): Types.Debugger
 	}
 	return (setmetatable(object, Debugger) :: unknown) :: Types.Debugger
 end
+--#endregion
 
 return table.freeze({
 	new = new,

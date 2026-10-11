@@ -4,9 +4,12 @@
 local LoomRoot = script.Parent.Parent
 local Types = require(LoomRoot.Types)
 
+--#region TYPES
 type Method = (...any) -> ...any
 type Decorator = Types.Decorator<any>
+--#endregion
 
+--#region API
 local Decorate = {}
 
 --- Errors unless `decorators` is a list of functions. `what` names the list in the message.
@@ -48,5 +51,7 @@ end
 function Decorate.member(target: { [string]: unknown }, name: string, decorators: { Decorator }, level: number)
 	target[name] = Decorate.wrapped(target, name, decorators, level + 1)
 end
+
+--#endregion
 
 return table.freeze(Decorate)

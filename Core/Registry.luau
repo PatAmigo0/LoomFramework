@@ -7,7 +7,7 @@
 	  2. runs every `LoomInit` at the same time (an init may yield) and waits for all of them;
 	  3. spawns `LoomStart` for everything that initialized, highest `Priority` first.
 	A failure is logged and only takes the failing service out. An init still running after
-	`LoomConfig.Spin.SlowInitWarning` seconds gets a warning, since nothing starts until every init has returned.
+	`LoomConfig.Spin.SlowInitWarning` seconds gets a warning.
 ]]
 
 local RunService = game:GetService("RunService")
@@ -20,8 +20,7 @@ local Config = require(script.Parent.Config)
 local Debugger = require(script.Parent.Debugger)
 local Net = require(script.Parent.Net)
 
-local KIND = if RunService:IsServer() then "Service" else "Controller"
-
+--#region TYPES
 type Hook = (self: Entry) -> ()
 
 -- The part of a woven table Loom works with; everything else on it belongs to the game.
@@ -34,9 +33,19 @@ type Entry = {
 	LoomInit: Hook?,
 	LoomStart: Hook?,
 }
+--#endregion
 
--- Loom's own messages. Made on first use: LoomConfig (which sets its level) is only read once Loom has loaded.
+--#region STATE
+local KIND = if RunService:IsServer() then "Service" else "Controller"
+
+local entries: { Entry } = {}
+local woven: { [string]: true } = {}
+local spun = false
 local loomDebugger: Types.Debugger? = nil
+--#endregion
+
+--#region LOCAL
+-- The Debugger for Loom's own messages.
 local function debugger(): Types.Debugger
 	local current = loomDebugger
 	if current then
@@ -46,18 +55,15 @@ local function debugger(): Types.Debugger
 	loomDebugger = created
 	return created
 end
-local entries: { Entry } = {}
-local woven: { [string]: true } = {}
-local spun = false
 
--- An xpcall error handler that logs the failure with a traceback. Loom uses xpcall wherever it logs an error,
--- and pcall only where it cleans up and rethrows.
+-- An xpcall handler that logs which step of which service failed, with a traceback.
 local function logFailure(entry: Entry, step: string): (unknown) -> ()
 	return function(err)
 		debugger():Warn("%s %s failed in %s: %s", KIND, entry.Name, step, debug.traceback(tostring(err), 2))
 	end
 end
 
+-- Runs a lifecycle hook if there is one; false if it threw.
 local function runHook(entry: Entry, hookName: string, hook: Hook?): boolean
 	if not hook then
 		return true
@@ -65,6 +71,7 @@ local function runHook(entry: Entry, hookName: string, hook: Hook?): boolean
 	return xpcall(hook, logFailure(entry, hookName), entry)
 end
 
+-- Connects the entry's packets; false if that failed.
 local function connectNet(entry: Entry): boolean
 	local net = entry.Net
 	if not net then
@@ -73,22 +80,24 @@ local function connectNet(entry: Entry): boolean
 	return xpcall(Net.Attach, logFailure(entry, "connecting its Net"), entry.Name, net)
 end
 
--- Runs every LoomInit in its own thread and yields until all of them have finished.
+-- Runs every LoomInit at the same time, each in its own thread, and returns once all of them have finished:
+-- entry -> whether its LoomInit succeeded.
 local function initAll(ready: { Entry }): { [Entry]: boolean }
 	local initialized: { [Entry]: boolean } = {}
 	local remaining = #ready
-	local waiting: thread? = nil
+	local waiting: thread? = nil -- this thread, while it waits
 
 	for _, entry in ready do
 		task.spawn(function()
 			initialized[entry] = runHook(entry, "LoomInit", entry.LoomInit)
 			remaining -= 1
 			if remaining == 0 and waiting then
-				task.spawn(waiting)
+				task.spawn(waiting) -- the last init to finish resumes the wait below
 			end
 		end)
 	end
 
+	-- Inits that never yield have already finished by now; wait only if some are still running.
 	if remaining > 0 then
 		local seconds = Config.get().Spin.SlowInitWarning
 		local slowWarning = task.delay(seconds, function()
@@ -107,6 +116,7 @@ local function initAll(ready: { Entry }): { [Entry]: boolean }
 	return initialized
 end
 
+-- Sort order: highest Priority first, then by name.
 local function byPriority(a: Entry, b: Entry): boolean
 	if a.Priority ~= b.Priority then
 		return a.Priority > b.Priority
@@ -114,8 +124,12 @@ local function byPriority(a: Entry, b: Entry): boolean
 	return a.Name < b.Name
 end
 
+--#endregion
+
+--#region API
 local Registry = {}
 
+--- Registers a service/controller for `Spin` and gives it its `Debugger` and `Trove`.
 function Registry.Weave<S>(service: S): S
 	local entry = service :: Entry
 	if type(entry) ~= "table" or type(entry.Name) ~= "string" then
@@ -135,6 +149,7 @@ function Registry.Weave<S>(service: S): S
 	return service
 end
 
+--- Connects every Net, runs every LoomInit, then every LoomStart (see the header).
 function Registry.Spin(): Types.TypedPromise<()>
 	return Promise.new(function(resolve)
 		if spun then
@@ -160,5 +175,7 @@ function Registry.Spin(): Types.TypedPromise<()>
 		resolve()
 	end)
 end
+
+--#endregion
 
 return table.freeze(Registry)
