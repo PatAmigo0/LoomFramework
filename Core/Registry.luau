@@ -39,14 +39,19 @@ local entries: { Entry } = {}
 local woven: { [string]: true } = {}
 local spun = false
 
+-- An xpcall error handler that logs the failure with a traceback. Loom uses xpcall wherever it logs an error,
+-- and pcall only where it cleans up and rethrows.
+local function logFailure(entry: Entry, step: string): (unknown) -> ()
+	return function(err)
+		logger:AtWarning():Log(`{KIND} {entry.Name} failed in {step}: {debug.traceback(tostring(err), 2)}`)
+	end
+end
+
 local function runHook(entry: Entry, hookName: string, hook: Hook?): boolean
 	if not hook then
 		return true
 	end
-
-	return xpcall(hook, function(err: unknown)
-		logger:AtWarning():Log(`{KIND} {entry.Name} failed in {hookName}: {debug.traceback(tostring(err), 2)}`)
-	end, entry)
+	return xpcall(hook, logFailure(entry, hookName), entry)
 end
 
 local function connectNet(entry: Entry): boolean
@@ -54,12 +59,7 @@ local function connectNet(entry: Entry): boolean
 	if not net then
 		return true
 	end
-
-	local ok, err = pcall(Net.Attach, entry.Name, net)
-	if not ok then
-		logger:AtWarning():Log(`{KIND} {entry.Name} couldn't connect its Net: {err}`)
-	end
-	return ok
+	return xpcall(Net.Attach, logFailure(entry, "connecting its Net"), entry.Name, net)
 end
 
 -- Runs every LoomInit in its own thread and yields until all of them have finished.
