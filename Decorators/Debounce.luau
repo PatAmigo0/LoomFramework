@@ -1,18 +1,31 @@
 --!strict
 
-local debs = (setmetatable({}, { __mode = "k" }) :: any) :: { [{ [any]: any }]: boolean }
+local Types = require(script.Parent.Parent.Types)
 
---- Wraps a method to prevent it from being called again while it is still executing.
----
---- @param self The component instance (must contain the Debounce field)
---- @param callback The original method we are wrapping
---- @param ... The arguments passed to the method
-return function(self: { [any]: any }, callback: (...any) -> ...any, ...: any)
-	if debs[self] == true then
+type ObjectSet = { [unknown]: true }
+
+-- method -> objects currently running it. Weak, so it never keeps a method or an object alive.
+local running = setmetatable({} :: { [unknown]: ObjectSet }, { __mode = "k" })
+
+--- Ignores calls while the same method is already running on the same object (e.g. it's yielding).
+local Debounce: Types.AnyDecorator = function(self, callback, ...)
+	local busy = running[callback]
+	if not busy then
+		busy = setmetatable({} :: ObjectSet, { __mode = "k" })
+		running[callback] = busy
+	end
+	if busy[self] then
 		return
 	end
 
-	debs[self] = true
-	callback(self, ...)
-	debs[self] = false
+	busy[self] = true
+	local results = table.pack(pcall(callback, self, ...))
+	busy[self] = nil
+
+	if not results[1] then
+		error(results[2], 0)
+	end
+	return table.unpack(results, 2, results.n)
 end
+
+return Debounce

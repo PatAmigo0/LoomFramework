@@ -1,9 +1,5 @@
 --!strict
 
-local LoomRoot = script.Parent.Parent
-local Trove = require(LoomRoot.roblox_packages.trove)
+local Packages = script.Parent.Parent.roblox_packages
 
-export type Trackable = Trove.Trackable
-export type Trove = Trove.Trove
-
-return Trove
+return require(Packages.trove)

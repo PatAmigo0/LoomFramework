@@ -1,9 +1,5 @@
 --!strict
 
-local LoomRoot = script.Parent.Parent
-local Signal = require(LoomRoot.roblox_packages.signal)
+local Packages = script.Parent.Parent.roblox_packages
 
-export type Signal<T...> = Signal.Signal<T...>
-export type Connection = Signal.Connection
-
-return Signal
+return require(Packages.signal)

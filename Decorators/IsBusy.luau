@@ -1,10 +1,14 @@
 --!strict
 
-return function(keyToCheck: string)
-	return function(self: any, callback: (...any) -> ...any, ...: any)
-		if keyToCheck == nil or self[keyToCheck] == nil or self[keyToCheck] == true then
+local Types = require(script.Parent.Parent.Types)
+
+--- Blocks the method while `self[flag]` is true or unset; set the flag to false to allow calls.
+return function(flag: string): Types.AnyDecorator
+	return function(self, callback, ...)
+		local value = (self :: { [string]: unknown })[flag]
+		if value == nil or value == true then
 			return
 		end
-		callback(self, ...)
+		return callback(self, ...)
 	end
 end

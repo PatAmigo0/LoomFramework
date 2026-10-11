@@ -1,32 +1,180 @@
 --!strict
+--[[
+	Every public Loom type lives here, and only here.
 
-local PublicTypes = require(script.Public)
+	    local Types = require(Shared.Loom.Types)
+	    export type MyService = Types.Service<{ ... }, typeof(MyServiceDef.Net)>
 
-export type LoomSchema<T = {}, N = nil> = PublicTypes.LoomSchema<T, N>
-export type LoomClass<T = {}, N = nil> = PublicTypes.LoomClass<T, N>
-export type LoomNet<Net> = PublicTypes.LoomNet<Net>
+	Types that only Loom's internals need are plain (non-exported) `type`s inside the module that uses them.
+]]
 
-export type ComponentInstance<T, I = Instance> = PublicTypes.ComponentInstance<T, I>
-export type ComponentClass<T, I = Instance> = PublicTypes.ComponentClass<T, I>
-export type ComponentSchema<T = {}, I = Instance> = PublicTypes.ComponentSchema<T, I>
+local LoomRoot = script.Parent
+local Packages = LoomRoot.roblox_packages
 
-export type ReliabilityEnum = PublicTypes.ReliabilityEnum
-export type NetworkNamespaceEnum = PublicTypes.NetworkNamespaceEnum
+local LoggerPackage = require(Packages.typed_logger)
+local PromisePackage = require(Packages["typed-promise"])
+local SignalPackage = require(Packages.signal)
+local TrovePackage = require(Packages.trove)
+-- selene: allow(unused_variable) -- only used in a type position (`typeof`), which selene doesn't see
+local ComponentUtil = require(LoomRoot.Core.Component.Util)
 
-export type Logger = PublicTypes.Logger
-export type LogItem = PublicTypes.LogItem
+-- ==========================================
+-- VENDORS
+-- ==========================================
+export type Logger = LoggerPackage.Logger
+export type LogItem = LoggerPackage.LogItem
+export type Signal<T...> = SignalPackage.Signal<T...>
+export type Connection = SignalPackage.Connection
+export type Trove = TrovePackage.Trove
+export type Promise = PromisePackage.Promise
+export type TypedPromise<T...> = PromisePackage.TypedPromise<T...>
 
-export type Signal<T...> = PublicTypes.Signal<T...>
-export type Connection = PublicTypes.Connection
+-- ==========================================
+-- NETWORKING
+-- ==========================================
+export type Reliability = "reliable" | "unreliable"
 
-export type Promise = PublicTypes.Promise
-export type TypedPromise<T> = PublicTypes.TypedPromise<T>
+--- Runs on the server for every packet a client sends, before any listener sees it.
+--- Return false to drop the packet.
+export type Middleware<T> = (player: Player, data: T) -> boolean
 
--- ByteNet
-export type ByteNetInterface<T> = PublicTypes.ByteNetInterface<T>
-export type ByteNetSchema = PublicTypes.ByteNetSchema
-export type ByteNetPacket<T> = PublicTypes.ByteNetPacket<T>
-export type ByteNet = PublicTypes.ByteNet
-export type Packet<T> = PublicTypes.Packet<T>
+--- What you pass to `Loom.Packet`.
+export type PacketDef<T> = {
+	--- What the packet carries, built from `Loom.Util.ByteNet`, e.g. `ByteNet.struct({ hp = ByteNet.uint8 })`.
+	Schema: T,
+	ReliabilityType: Reliability?,
+	Middleware: { Middleware<T> }?,
+}
+
+export type Packet<T> = {
+	-- server -> client
+	read sendToAll: (data: T) -> (),
+	read sendTo: (data: T, target: Player) -> (),
+	read sendToList: (data: T, targets: { Player }) -> (),
+	read sendToAllExcept: (data: T, except: Player) -> (),
+	-- client -> server
+	read send: (data: T) -> (),
+	--- `player` is the sender on the server and nil on the client.
+	read listen: (callback: (data: T, player: Player?) -> ()) -> Connection,
+	read wait: () -> (T, Player?),
+}
+
+--- `Loom.Util.ByteNet`. Every data type is typed as the value it carries, so the type checker sees
+--- `ByteNet.struct({ hp = ByteNet.uint8 })` as `{ hp: number }` and infers packet payloads for you.
+export type ByteNet = {
+	struct: <T>(format: T) -> T,
+	array: <T>(value: T) -> { T },
+	optional: <T>(value: T) -> T?,
+	map: <K, V>(key: K, value: V) -> { [K]: V },
+
+	bool: boolean,
+	string: string,
+	buff: buffer,
+	inst: Instance,
+	cframe: CFrame,
+	vec2: Vector2,
+	vec3: Vector3,
+
+	uint8: number,
+	uint16: number,
+	uint32: number,
+	int8: number,
+	int16: number,
+	int32: number,
+	float32: number,
+	float64: number,
+
+	nothing: nil,
+	unknown: unknown,
+}
+
+-- ==========================================
+-- SERVICES & CONTROLLERS
+-- ==========================================
+--- A service (server) or controller (client): your members `M` plus everything Loom injects.
+--- `N` is its networking table, usually `typeof(MyServiceDef.Net)`.
+export type Service<M, N = nil> = M & {
+	Name: string,
+	Priority: number,
+	Net: N,
+	Debugger: LogItem,
+	Trove: Trove,
+
+	-- Lifecycle hooks are optional; Loom skips the ones you don't write. They're typed as required because
+	-- the type solver only gives `function MyService:LoomInit()` a typed `self` from a non-optional field.
+	LoomInit: (self: Service<M, N>) -> (),
+	LoomStart: (self: Service<M, N>) -> (),
+}
+
+export type Controller<M, N = nil> = Service<M, N>
+
+-- ==========================================
+-- DECORATORS
+-- ==========================================
+--- Wraps a method: call `callback(self, ...)` to run it (and pass its results on), or don't, to block the call.
+export type Decorator<Self> = (self: Self, callback: (Self, ...any) -> ...any, ...any) -> ...any
+
+--- A decorator that fits a method of any object (most built-in decorators are this).
+export type AnyDecorator = <Self>(self: Self, callback: (Self, ...any) -> ...any, ...any) -> ...any
+
+-- ==========================================
+-- COMPONENTS
+-- ==========================================
+export type ComponentUtil = typeof(ComponentUtil)
+
+--- `self` inside a component method: your members `T` plus what Loom gives every component instance.
+export type ComponentInstance<T, I = Instance> = T & {
+	Instance: I,
+	Trove: Trove,
+	Debugger: LogItem,
+	Util: ComponentUtil,
+
+	--- This instance's component of another class, if the Roblox instance has one.
+	GetComponent: <C>(
+		self: ComponentInstance<T, I>,
+		component: { read FromInstance: (never, Instance) -> C? }
+	) -> C?,
+}
+
+--- Hooks into how instances of one component class are built. See sleitnick's Component docs.
+export type ComponentExtension<Self> = {
+	ShouldExtend: ((component: Self) -> boolean)?,
+	ShouldConstruct: ((component: Self) -> boolean)?,
+	Constructing: ((component: Self) -> ())?,
+	Constructed: ((component: Self) -> ())?,
+	Starting: ((component: Self) -> ())?,
+	Started: ((component: Self) -> ())?,
+	Stopping: ((component: Self) -> ())?,
+	Stopped: ((component: Self) -> ())?,
+}
+
+--- A component class: your members `T` (methods take `self: ComponentInstance<T, I>`), its configuration,
+--- and the class API you get back from `Loom.Component`.
+export type Component<T, I = Instance> = T & {
+	Tag: string,
+	Ancestors: { Instance }?,
+	Extensions: { ComponentExtension<ComponentInstance<T, I>> }?,
+	--- Method name -> decorators, outermost first. The `"*"` key decorates every method.
+	Decorators: { [string]: { Decorator<ComponentInstance<T, I>> } }?,
+	RenderPriority: number?,
+
+	-- Optional hooks, typed as required for the same reason as on `Service`.
+	LoomInit: (self: ComponentInstance<T, I>) -> (),
+	LoomStart: (self: ComponentInstance<T, I>) -> (),
+	LoomDestroy: (self: ComponentInstance<T, I>) -> (),
+	HeartbeatUpdate: (self: ComponentInstance<T, I>, dt: number) -> (),
+	SteppedUpdate: (self: ComponentInstance<T, I>, dt: number) -> (),
+	RenderSteppedUpdate: (self: ComponentInstance<T, I>, dt: number) -> (),
+
+	Started: Signal<ComponentInstance<T, I>>,
+	Stopped: Signal<ComponentInstance<T, I>>,
+	GetAll: (self: Component<T, I>) -> { ComponentInstance<T, I> },
+	FromInstance: (self: Component<T, I>, instance: Instance) -> ComponentInstance<T, I>?,
+	WaitForInstance: (
+		self: Component<T, I>,
+		instance: Instance,
+		timeout: number?
+	) -> TypedPromise<ComponentInstance<T, I>>,
+}
 
 return nil
