@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### Breaking: Loom's own Debugger replaces typed_logger
+
+`self.Debugger` used to be one sleitnick Log item, created when the service or component was. That had three problems. Its modifiers stuck: `Throw()`, `Every(n)` and `AtMostEvery(n)` change the item and return it, so a single `self.Debugger:AtMostEvery(1):Log(...)` throttled every later log from that service, and `:Throw()` made every later log throw. Every line reported the traceback from where the item was made, not where it was logged. And with no `LogConfig` the level was Debug everywhere, so live servers printed every debug line and, outside Studio, sent each one to `AnalyticsService:FireLogEvent`.
+
+`Core/Debugger.luau` is a small logger written for Loom:
+
+- `Trace`, `Debug`, `Info`, `Warn` and `Error` (Error adds a traceback; none of them throw). `IsEnabled(level)` lets you skip work that only feeds a log.
+- Each line names its owner and the function that logged: `[Debug] DuelService:_startDuel: ...`. Component lines show the instance too: `DuelPad[Pad1]:LoomInit`. The function name is looked up only for lines that get written.
+- With extra arguments the message is a `string.format` pattern, formatted only when the level is on, so a log that's off costs one method call and builds no string. Use `%*` for values that aren't strings or numbers. A pattern that doesn't fit its arguments is printed with the reason instead of throwing.
+- Levels come from an optional `ReplicatedStorage.LogConfig` module: `Studio` (default Debug), `Live` (default Warn), and `Overrides` by service/controller Name or component Tag.
+
+Migrating: `self.Debugger:Log(msg)` becomes `self.Debugger:Debug(msg)`. `Loom.Util.Logger` is gone; use `Loom.Util.Debugger.new(name)`. `Types.Logger` and `Types.LogItem` are replaced by `Types.Debugger` and `Types.LogLevel`. Loom no longer depends on typed_logger.
+
+### Components
+
+- An instance removed before it started never got `LoomDestroy`, and its Trove was never cleaned. The Component library constructs and starts an instance in separate deferred steps, and only stops instances that started. Loom now checks right after the start step would have run and finishes such instances itself. `LoomDestroy` and the Trove clean-up run at most once per instance either way, and the Trove is cleaned even if `LoomDestroy` throws.
+- If `LoomInit` throws, the instance's Trove is cleaned before the error goes on, so connections made before the error don't outlive it.
+- `Decorators` used to be marked applied before they were applied. A bad entry failed the first instance and left every later one running with some or none of its decorators, silently. Every decorated method is now worked out before any is replaced, and a bad entry fails every instance with the same error, prefixed with the Tag.
+- `"*"` decorators skip `HeartbeatUpdate`, `SteppedUpdate` and `RenderSteppedUpdate`, so a `"*"` Cooldown or Once no longer throttles or stops per-frame updates. Name them in `Decorators` to decorate them on purpose. Named entries wrap their method first and `"*"` wraps the result.
+
+### Checks
+
+These catch mistakes the type checker sees in strict code but not in nonstrict files or behind casts, with errors pointing at your call:
+
+- `Loom.Packet` requires a `Schema`, a `ReliabilityType` of `"reliable"` or `"unreliable"` (ByteNet quietly treats any other value, `"Reliable"` included, as unreliable), and `Middleware` as a list of functions. These used to fail at `Loom.Spin`, or on every incoming packet.
+- `listen` requires a function; it used to fail when a packet arrived.
+- `Loom.Define` requires string `Net` keys.
+- `Loom.Decorate`, component `Decorators` and `Compose` require lists of functions.
+- `Cooldown` checks its arguments, and a `keyOf` that returns nil no longer errors ("table index is nil").
+- `Safe` no longer throws from its own error report when `self` isn't a table.
+- `IsPlayer` ignores calls whose first argument isn't an Instance.
+- `Loom.Spin` warns, naming the services, when a `LoomInit` is still running after 10 seconds, since nothing starts until every init returns.
+
+### Packets
+
 - Services and controllers see different halves of each packet. `Service.Net` uses `ServerNet<N>` (no `send`) and `Controller.Net` uses `ClientNet<N>` (only `send`, `listen` and `wait`), so autocomplete offers only what works on that side and a wrong-side call is a type error. A `PacketView` type function builds both views from the one shared `Net` type. The runtime error stubs stay as a backstop.
 - `Middleware.IsAlive` and `Middleware.RateLimit(...)` take `(player, data)`. As one-parameter functions they made the solver put an error type into the payload type of any packet that used them (`Packet<*error-type* | number>`), which left that packet's `data` partly unchecked. Write your own middleware with both parameters too.
 

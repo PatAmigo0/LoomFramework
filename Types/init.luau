@@ -11,7 +11,6 @@
 local LoomRoot = script.Parent
 local Packages = LoomRoot.roblox_packages
 
-local LoggerPackage = require(Packages.typed_logger)
 local PromisePackage = require(Packages["typed-promise"])
 local SignalPackage = require(Packages.signal)
 local TrovePackage = require(Packages.trove)
@@ -21,13 +20,30 @@ local ComponentUtil = require(LoomRoot.Core.Component.Util)
 -- ==========================================
 -- VENDORS
 -- ==========================================
-export type Logger = LoggerPackage.Logger
-export type LogItem = LoggerPackage.LogItem
 export type Signal<T...> = SignalPackage.Signal<T...>
 export type Connection = SignalPackage.Connection
 export type Trove = TrovePackage.Trove
 export type Promise = PromisePackage.Promise
 export type TypedPromise<T...> = PromisePackage.TypedPromise<T...>
+
+-- ==========================================
+-- DEBUGGER
+-- ==========================================
+export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error" | "None"
+
+--- `self.Debugger` on services, controllers and component instances (see Core/Debugger). With extra arguments
+--- the message is a `string.format` pattern, formatted only when the level is on.
+export type Debugger = {
+	read Name: string,
+	read Trace: (self: Debugger, message: string, ...unknown) -> (),
+	read Debug: (self: Debugger, message: string, ...unknown) -> (),
+	read Info: (self: Debugger, message: string, ...unknown) -> (),
+	read Warn: (self: Debugger, message: string, ...unknown) -> (),
+	--- Warns with a traceback. Doesn't throw.
+	read Error: (self: Debugger, message: string, ...unknown) -> (),
+	--- Whether a log at `level` would be written; use it to skip work that only feeds a log.
+	read IsEnabled: (self: Debugger, level: LogLevel) -> boolean,
+}
 
 -- ==========================================
 -- NETWORKING
@@ -100,7 +116,7 @@ type function PacketView(net: type, keep: type): type
 	local view = types.newtable()
 	for name, property in net:properties() do
 		local packet = property.read
-		if packet then
+		if packet and packet.tag == "table" then
 			local trimmed = types.newtable()
 			for _, member in members do
 				local memberType = packet:readproperty(member)
@@ -129,7 +145,7 @@ export type Service<M, N = nil> = M & {
 	Name: string,
 	Priority: number,
 	Net: ServerNet<N>,
-	Debugger: LogItem,
+	Debugger: Debugger,
 	Trove: Trove,
 
 	-- Lifecycle hooks are optional; Loom skips the ones you don't write. They're typed as required because
@@ -143,7 +159,7 @@ export type Controller<M, N = nil> = M & {
 	Name: string,
 	Priority: number,
 	Net: ClientNet<N>,
-	Debugger: LogItem,
+	Debugger: Debugger,
 	Trove: Trove,
 
 	LoomInit: (self: Controller<M, N>) -> (),
@@ -168,7 +184,7 @@ export type ComponentUtil = typeof(ComponentUtil)
 export type ComponentInstance<T, I = Instance> = T & {
 	Instance: I,
 	Trove: Trove,
-	Debugger: LogItem,
+	Debugger: Debugger,
 	Util: ComponentUtil,
 
 	--- This instance's component of another class, if the Roblox instance has one.

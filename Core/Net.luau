@@ -64,12 +64,45 @@ end
 
 local Net = {}
 
+-- Checks what the type checker already does, for code it doesn't see (nonstrict files, casts). Errors point at the
+-- `Loom.Packet` call.
+local function checkDefinition(definition: unknown)
+	if type(definition) ~= "table" then
+		error("Loom.Packet expects a table", 4)
+	end
+	local fields = definition :: { Schema: unknown, ReliabilityType: unknown, Middleware: unknown }
+
+	if fields.Schema == nil then
+		error("Loom.Packet: Schema is missing", 4)
+	end
+	-- ByteNet treats anything other than "reliable" as unreliable, so a typo would silently drop reliability.
+	local reliability = fields.ReliabilityType
+	if reliability ~= nil and reliability ~= "reliable" and reliability ~= "unreliable" then
+		error(`Loom.Packet: ReliabilityType must be "reliable" or "unreliable", got {reliability}`, 4)
+	end
+	local middleware = fields.Middleware
+	if middleware ~= nil then
+		if type(middleware) ~= "table" then
+			error("Loom.Packet: Middleware must be a list of functions", 4)
+		end
+		for i, check in middleware :: { [unknown]: unknown } do
+			if type(check) ~= "function" then
+				error(`Loom.Packet: Middleware[{i}] isn't a function`, 4)
+			end
+		end
+	end
+end
+
 function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
+	checkDefinition(definition)
 	local middleware = if IS_SERVER then definition.Middleware else nil
 	-- Replaced (never mutated) on connect/disconnect, so a dispatch in progress keeps a stable list.
 	local listeners: { Listener<T> } = {}
 
 	local function listen(callback: Listener<T>): Connection
+		if type(callback) ~= "function" then
+			error("listen expects a function", 2)
+		end
 		local updated = table.clone(listeners)
 		table.insert(updated, callback)
 		listeners = updated
