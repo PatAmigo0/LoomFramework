@@ -5,11 +5,15 @@ local Types = require(script.Parent.Parent.Types)
 -- Fields Safe looks at to say which object failed.
 type Describable = { Name: unknown?, Instance: Instance? }
 
-local function describe(object: Describable): string
-	if typeof(object.Instance) == "Instance" then
-		return `{object} on {object.Instance:GetFullName()}`
-	elseif type(object.Name) == "string" then
-		return object.Name
+local function describe(object: unknown): string
+	if type(object) ~= "table" then
+		return tostring(object)
+	end
+	local fields = object :: Describable
+	if typeof(fields.Instance) == "Instance" then
+		return `{object} on {(fields.Instance :: Instance):GetFullName()}`
+	elseif type(fields.Name) == "string" then
+		return fields.Name :: string
 	end
 	return tostring(object)
 end
@@ -23,7 +27,7 @@ end
 local Safe: Types.AnyDecorator = function(self, callback, ...)
 	local results = table.pack(xpcall(callback, withTraceback, self, ...))
 	if not results[1] then
-		warn(`[Loom.Decorators.Safe] {describe(self :: Describable)} errored: {results[2]}`)
+		warn(`[Loom.Decorators.Safe] {describe(self)} errored: {results[2]}`)
 		return
 	end
 	return table.unpack(results, 2, results.n)

@@ -2,7 +2,7 @@
 # It is not intended for manual editing.
 format = 2
 name = "tohue/loom"
-version = "0.3.0"
+version = "0.4.0"
 target = "roblox"
 
 [graph."0x5eal/unzip@0.2.0 luau".pkg_ref]
@@ -66,19 +66,6 @@ index_url = "https://github.com/pesde-pkg/index"
 [graph."lukadev_0/result@1.2.1 lune".pkg_ref]
 ref_ty = "pesde"
 index_url = "https://github.com/pesde-pkg/index"
-
-[graph."patamigo0/typed_logger@0.1.6 roblox"]
-direct = ["typed_logger", { name = "patamigo0/typed_logger", version = "^0.1.6", index = "default" }, "standard"]
-
-[graph."patamigo0/typed_logger@0.1.6 roblox".dependencies]
-log = ["wally#sleitnick/log@0.1.2 roblox", "standard"]
-
-[graph."patamigo0/typed_logger@0.1.6 roblox".pkg_ref]
-ref_ty = "pesde"
-index_url = "https://github.com/pesde-pkg/index"
-
-[graph."patamigo0/typed_logger@0.1.6 roblox".pkg_ref.dependencies]
-log = [{ wally = "wally#sleitnick/log", version = "^0.1.2", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
 
 [graph."pesde/rojo@7.6.1 lune"]
 direct = ["rojo", { name = "pesde/rojo", version = "^7.5.1", index = "default", target = "lune" }, "dev"]
@@ -191,10 +178,6 @@ Promise = [{ wally = "wally#evaera/promise", version = ">=4.0.0, <5.0.0", index 
 Signal = [{ wally = "wally#sleitnick/signal", version = ">=2.0.0, <3.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
 Symbol = [{ wally = "wally#sleitnick/symbol", version = ">=2.0.0, <3.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
 Trove = [{ wally = "wally#sleitnick/trove", version = ">=1.0.0, <2.0.0", index = "https://github.com/UpliftGames/wally-index" }, "standard"]
-
-[graph."wally#sleitnick/log@0.1.2 roblox".pkg_ref]
-ref_ty = "wally"
-index_url = "https://github.com/UpliftGames/wally-index"
 
 [graph."wally#sleitnick/signal@2.0.3 roblox"]
 direct = ["signal", { wally = "wally#sleitnick/signal", version = "^2.0.3", index = "default" }, "standard"]
