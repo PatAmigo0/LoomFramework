@@ -33,6 +33,7 @@ local Enums = require(script.Enums)
 local Decorators = require(script.Decorators)
 local Middleware = require(script.Middleware)
 local Component = require(script.Core.Component)
+local Debugger = require(script.Core.Debugger)
 local Decorate = require(script.Core.Decorate)
 local Net = require(script.Core.Net)
 local Registry = require(script.Core.Registry)
@@ -46,7 +47,7 @@ local Loom = {
 		ByteNet = Schema.ByteNet,
 		Promise = Vendors.Promise,
 		Sift = Vendors.Sift,
-		Logger = Vendors.Logger,
+		Debugger = Debugger,
 		Signal = Vendors.Signal,
 		Trove = Vendors.Trove,
 	}),
@@ -72,7 +73,9 @@ function Loom.Define<D>(definition: D & { read Name: string }): D
 			error(`Loom.Define: {fields.Name}.Net must be a table of Loom.Packet`, 2)
 		end
 		for key, packet in net :: { [unknown]: unknown } do
-			if not Net.IsPacket(packet) then
+			if type(key) ~= "string" then
+				error(`Loom.Define: {fields.Name}.Net keys must be strings, got {typeof(key)} {key}`, 2)
+			elseif not Net.IsPacket(packet) then
 				error(`Loom.Define: {fields.Name}.Net.{key} isn't a Loom.Packet`, 2)
 			end
 		end
