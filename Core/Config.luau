@@ -1,7 +1,8 @@
 --!strict
 --[[
 	Reads the game's optional `ReplicatedStorage.LoomConfig` module (see Types.LoomConfig), checks it and fills in
-	the defaults.
+	the defaults from `DEFAULTS` below. Without a LoomConfig module, or for any field it leaves out, Loom uses the
+	default, so a game only writes the settings it wants to change.
 
 	It's loaded on first use, not when Loom loads, so LoomConfig can require Loom. Nothing in Loom may call
 	`Config.get()` while Loom's own modules are still loading.
@@ -32,6 +33,23 @@ export type Resolved = {
 		SlowInitWarning: number,
 	},
 }
+
+local IS_STUDIO = RunService:IsStudio()
+
+-- Every setting's default. A game's LoomConfig overrides these field by field.
+local DEFAULTS = table.freeze({
+	Log = table.freeze({
+		Level = (if IS_STUDIO then "Debug" else "Warn") :: Types.LogLevel,
+	}),
+	Net = table.freeze({
+		RateLimit = nil :: Types.RateLimitConfig?, -- off
+		LogDrops = false,
+		NamespaceTimeout = 30,
+	}),
+	Spin = table.freeze({
+		SlowInitWarning = 10,
+	}),
+})
 
 local LEVELS: { [string]: true } = { Trace = true, Debug = true, Info = true, Warn = true, Error = true, None = true }
 table.freeze(LEVELS)
@@ -141,7 +159,7 @@ local function load(): Resolved
 		end
 	end
 
-	local rateLimit: Types.RateLimitConfig? = nil
+	local rateLimit = if net.RateLimit == nil then DEFAULTS.Net.RateLimit else nil
 	if net.RateLimit ~= nil and net.RateLimit ~= false then
 		local problem = Config.rateLimitProblem(net.RateLimit)
 		if problem then
@@ -152,19 +170,17 @@ local function load(): Resolved
 
 	local resolved: Resolved = {
 		Log = {
-			Level = if log.Level == nil
-				then (if RunService:IsStudio() then "Debug" else "Warn")
-				else level(log.Level, "Log.Level"),
+			Level = if log.Level == nil then DEFAULTS.Log.Level else level(log.Level, "Log.Level"),
 			Overrides = overrides,
 		},
 		Net = {
 			RateLimit = rateLimit,
 			Middleware = middleware,
-			LogDrops = boolean(net.LogDrops, "Net.LogDrops", false),
-			NamespaceTimeout = positive(net.NamespaceTimeout, "Net.NamespaceTimeout", 30),
+			LogDrops = boolean(net.LogDrops, "Net.LogDrops", DEFAULTS.Net.LogDrops),
+			NamespaceTimeout = positive(net.NamespaceTimeout, "Net.NamespaceTimeout", DEFAULTS.Net.NamespaceTimeout),
 		},
 		Spin = {
-			SlowInitWarning = positive(spin.SlowInitWarning, "Spin.SlowInitWarning", 10),
+			SlowInitWarning = positive(spin.SlowInitWarning, "Spin.SlowInitWarning", DEFAULTS.Spin.SlowInitWarning),
 		},
 	}
 	return resolved

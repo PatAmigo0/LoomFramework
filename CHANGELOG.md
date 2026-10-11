@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-10-11)
+
+Breaking: `self.Debugger` is Loom's own logger now (`Debugger:Log` becomes `Debugger:Debug`, and `Loom.Util.Logger` becomes `Loom.Util.Debugger`). Everything else is additive: LoomConfig, side-specific packet types, component lifecycle fixes and runtime checks.
 
 ### Breaking: Loom's own Debugger replaces typed_logger
 
@@ -17,7 +19,7 @@ Migrating: `self.Debugger:Log(msg)` becomes `self.Debugger:Debug(msg)`. `Loom.Ut
 
 ### LoomConfig
 
-An optional `ReplicatedStorage.LoomConfig` module now holds Loom's settings; `Types.LoomConfig` documents each field and its default. It's a module, so branch on `RunService:IsStudio()` for different test and live values. Loom reads it the first time it needs a value rather than when it loads, so the config can require Loom. Unknown keys and wrong types are errors, so a typo can't silently leave a setting at its default.
+An optional `ReplicatedStorage.LoomConfig` module now holds Loom's settings; `Types.LoomConfig` documents each field and its default. It's a module, so branch on `RunService:IsStudio()` for different test and live values. Loom reads it the first time it needs a value rather than when it loads, so the config can require Loom. Unknown keys and wrong types are errors, so a typo can't silently leave a setting at its default. Without the module, or for any field it leaves out, Loom uses the defaults in the `DEFAULTS` table at the top of `Core/Config.luau`, so a game only writes what it wants to change.
 
 - `Log.Level`, `Log.Overrides`: see the Debugger above.
 - `Net.RateLimit = { Requests = n, Window = seconds }`: a per-player limit on every client -> server packet. Off by default. A packet can set its own with the new `RateLimit` field on `Loom.Packet`, or turn the default off with `RateLimit = false`.
