@@ -152,7 +152,7 @@ A packet's members depend on the side. A service's `Net` exposes the server memb
 
 `listen` and `wait` work immediately. The send members work after `Loom.Spin` has connected the owning service or controller.
 
-On the server, incoming packets pass their checks in this order: the rate limit, `LoomConfig.Net.Middleware`, then the packet's own `Middleware`.
+On the server, incoming packets pass their checks in this order: the rate limit, the NaN/inf check (`LoomConfig.Security.RejectNonFinite`), `LoomConfig.Net.Middleware`, then the packet's own `Middleware`. Packets from a player that [Security](#security) has blocked are dropped before any of them.
 
 ### Loom.Weave
 
@@ -255,6 +255,7 @@ A decorator is a function `(self, callback, ...) -> ...`. It calls `callback(sel
 |---|---|
 | `IsAlive` | Drops packets from players without a living character. |
 | `RateLimit(requests, window)` | At most `requests` packets per player per `window` seconds. Prefer the packet's `RateLimit` field. |
+| `Finite` | Drops packets with NaN or ±inf anywhere in them: numbers, `Vector2`, `Vector3`, `CFrame`, `Color3`, and table keys and values. `LoomConfig.Security.RejectNonFinite` applies it to every packet. |
 
 Custom middleware is any `(player: Player, data) -> boolean`. Declare both parameters even when `data` is unused; a one-parameter function weakens the inferred payload type.
 
@@ -327,6 +328,32 @@ return config
 
 The module is read the first time Loom needs a setting, so it may require Loom.
 
+### Security
+
+`LoomConfig.Security` protects the server from what clients send. Every part is off by default and works on its own. A client controls everything it sends, so none of this replaces checking requests in your services (does the player own that item, can they reach that position); it handles the generic cases.
+
+```lua
+Security = {
+	RejectNonFinite = true,
+	Traffic = { Calls = 120, Bytes = 64 * 1024, Window = 1 },
+	Strikes = { Limit = 20, Window = 10, Action = "Kick" },
+	OnViolation = function(player, violation)
+		warn(player.Name, violation.Kind, violation.Packet, violation.Reason)
+	end,
+},
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `Security.RejectNonFinite` | `false` | Drops client packets with NaN or ±inf anywhere in them. ByteNet's float types decode any bits a client sends, and NaN gets past checks like `if damage > 100` because every comparison with it is false. |
+| `Security.Traffic` | off | `{ Calls?, Bytes?, Window }`: a per-player budget for every call to ByteNet's remotes, counted before ByteNet decodes anything, so malformed buffers count too. A player over budget has every packet dropped until the window ends. |
+| `Security.Strikes` | off | `{ Limit, Window, Action, BlockTime?, KickMessage? }`: after `Limit` violations within `Window` seconds, `"Kick"` kicks the player and `"Block"` drops all their packets for `BlockTime` seconds (default 30). |
+| `Security.OnViolation` | none | `(player, violation)`, called for every violation in its own thread. `violation.Kind` is `"Drop"` (a check dropped a packet; `violation.Packet` names it), `"Traffic"` (over budget) or `"Payload"` (a remote call that isn't a ByteNet buffer, which the real client never sends). |
+
+Every dropped packet counts as a violation, rate limit drops included. Set `Strikes.Limit` high enough that a laggy client releasing a burst of queued packets doesn't get kicked. Loom logs traffic blocks, strike blocks and kicks at `Warn` under the name `Loom`.
+
+Loom's remote listener runs after ByteNet's, so the call that crosses the traffic budget still gets decoded; the block starts with the next one. ByteNet errors on a buffer it can't decode, which drops the rest of that call and prints an error in the server output. Loom can't catch that without forking ByteNet, but `Traffic` limits how often a client can cause it.
+
 ## Types
 
 `require(Packages.loom)` exports every public type, e.g. `Loom.Service<M, N>`. They are defined in Loom's `Types` module.
@@ -343,6 +370,7 @@ The module is read the first time Loom needs a setting, so it may require Loom.
 | `Decorator<Self>`, `AnyDecorator` | Decorators. |
 | `Debugger`, `LogLevel` | Logging. |
 | `LoomConfig` | The configuration module's shape. |
+| `TrafficConfig`, `StrikesConfig`, `Violation` | `LoomConfig.Security` parts and what `OnViolation` receives. |
 | `ByteNet` | The schema builder table. |
 | `Signal<T...>`, `Connection`, `Trove`, `Promise`, `TypedPromise<T...>` | Vendor types. |
 

@@ -31,6 +31,12 @@ export type Resolved = {
 	Spin: {
 		SlowInitWarning: number,
 	},
+	Security: {
+		RejectNonFinite: boolean,
+		Traffic: Types.TrafficConfig?,
+		Strikes: Types.StrikesConfig?,
+		OnViolation: ((player: Player, violation: Types.Violation) -> ())?,
+	},
 }
 
 --#endregion
@@ -49,6 +55,11 @@ local DEFAULTS = table.freeze({
 	}),
 	Spin = table.freeze({
 		SlowInitWarning = 10,
+	}),
+	Security = table.freeze({
+		RejectNonFinite = false,
+		BlockTime = 30,
+		KickMessage = "Kicked for sending invalid data.",
 	}),
 })
 
@@ -127,6 +138,52 @@ local function rateLimitProblem(value: unknown): string?
 	return nil
 end
 
+local function traffic(value: unknown): Types.TrafficConfig?
+	if value == nil then
+		return nil
+	end
+	local fields = section(value, "Security.Traffic", { "Calls", "Bytes", "Window" })
+	if fields.Calls == nil and fields.Bytes == nil then
+		error("LoomConfig.Security.Traffic needs Calls, Bytes or both", 0)
+	end
+	local calls = if fields.Calls == nil then nil else positive(fields.Calls, "Security.Traffic.Calls", 1)
+	local bytes = if fields.Bytes == nil then nil else positive(fields.Bytes, "Security.Traffic.Bytes", 1)
+	if fields.Window == nil then
+		error("LoomConfig.Security.Traffic needs Window (seconds)", 0)
+	end
+	return { Calls = calls, Bytes = bytes, Window = positive(fields.Window, "Security.Traffic.Window", 1) }
+end
+
+local function strikes(value: unknown): Types.StrikesConfig?
+	if value == nil then
+		return nil
+	end
+	local path = "Security.Strikes"
+	local fields = section(value, path, { "Limit", "Window", "Action", "BlockTime", "KickMessage" })
+	local limit = fields.Limit
+	if type(limit) ~= "number" or limit < 1 or limit % 1 ~= 0 then
+		fail(`{path}.Limit`, "a whole number of 1 or more", limit)
+	end
+	if fields.Window == nil then
+		error(`LoomConfig.{path} needs Window (seconds)`, 0)
+	end
+	local action = fields.Action
+	if action ~= "Kick" and action ~= "Block" then
+		fail(`{path}.Action`, `"Kick" or "Block"`, action)
+	end
+	local kickMessage = fields.KickMessage
+	if kickMessage ~= nil and type(kickMessage) ~= "string" then
+		fail(`{path}.KickMessage`, "a string", kickMessage)
+	end
+	return {
+		Limit = limit :: number,
+		Window = positive(fields.Window, `{path}.Window`, 1),
+		Action = action :: "Kick" | "Block",
+		BlockTime = positive(fields.BlockTime, `{path}.BlockTime`, DEFAULTS.Security.BlockTime),
+		KickMessage = (kickMessage or DEFAULTS.Security.KickMessage) :: string,
+	}
+end
+
 -- Reads LoomConfig, checks it and fills in the defaults.
 local function load(): Resolved
 	local module = ReplicatedStorage:FindFirstChild("LoomConfig")
@@ -135,10 +192,14 @@ local function load(): Resolved
 		raw = (require :: (ModuleScript) -> unknown)(module)
 	end
 
-	local root = section(raw, "(root)", { "Log", "Net", "Spin" })
+	local root = section(raw, "(root)", { "Log", "Net", "Spin", "Security" })
 	local log = section(root.Log, "Log", { "Level", "Overrides" })
 	local net = section(root.Net, "Net", { "RateLimit", "Middleware", "LogDrops", "NamespaceTimeout" })
 	local spin = section(root.Spin, "Spin", { "SlowInitWarning" })
+	local security = section(root.Security, "Security", { "RejectNonFinite", "Traffic", "Strikes", "OnViolation" })
+	if security.OnViolation ~= nil and type(security.OnViolation) ~= "function" then
+		fail("Security.OnViolation", "a function", security.OnViolation)
+	end
 
 	local overrides: { [string]: Types.LogLevel } = {}
 	if log.Overrides ~= nil then
@@ -188,6 +249,16 @@ local function load(): Resolved
 		},
 		Spin = {
 			SlowInitWarning = positive(spin.SlowInitWarning, "Spin.SlowInitWarning", DEFAULTS.Spin.SlowInitWarning),
+		},
+		Security = {
+			RejectNonFinite = boolean(
+				security.RejectNonFinite,
+				"Security.RejectNonFinite",
+				DEFAULTS.Security.RejectNonFinite
+			),
+			Traffic = traffic(security.Traffic),
+			Strikes = strikes(security.Strikes),
+			OnViolation = security.OnViolation :: ((player: Player, violation: Types.Violation) -> ())?,
 		},
 	}
 	return resolved

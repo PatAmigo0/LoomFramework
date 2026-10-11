@@ -2,7 +2,8 @@
 # Builds the Wally package from the pesde one, and publishes it with `publish`.
 #
 #   scripts/wally.sh            build into a temp dir, list its files, test-install its dependencies
-#   scripts/wally.sh publish    the same, then `wally publish` (run `wally login` once first)
+#   scripts/wally.sh publish    the same, then `wally publish` (run `login` once first)
+#   scripts/wally.sh login      `wally login` against the registry in the generated wally.toml
 #
 # pesde.toml stays the only manifest: name, version, metadata and the wally dependencies
 # are read from it. Two things differ in the Wally build:
@@ -12,7 +13,8 @@
 #
 # Wally clones its index with libgit2, which can't authenticate over SSH. A global
 # `url.git@github.com:.insteadOf https://github.com/` rule makes it fail with "failed to
-# start SSH session"; drop the rule while publishing.
+# start SSH session". `make wally` / `make wally-publish` turn the rule off for the run
+# when `github-https` is installed.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -85,6 +87,12 @@ cat > "$OUT/default.project.json" << EOF
 	}
 }
 EOF
+
+# wally login reads the registry from ./wally.toml, which only exists in the build.
+if [ "${1:-}" = "login" ]; then
+	wally login --project-path "$OUT"
+	exit
+fi
 
 echo "== $NAME@$VERSION =="
 cat "$OUT/wally.toml"
