@@ -13,6 +13,7 @@ includes = [
     "Vendors/**/*.luau",
     "Middleware/**/*.luau",
     "init.luau",
+    "README.md",
     "CHANGELOG.md",
     "pesde.toml",
 ]
