@@ -18,7 +18,7 @@ return function(seconds: number, keyOf: ((...any) -> unknown)?): Types.AnyDecora
 	elseif keyOf ~= nil and type(keyOf) ~= "function" then
 		error("Cooldown's keyOf must be a function", 2)
 	end
-	-- object -> key -> time of its last allowed call. Weak, so it never keeps objects alive.
+	-- object -> key -> time of its last allowed call.
 	local lastCalls = setmetatable({} :: { [unknown]: LastCalls }, { __mode = "k" })
 
 	return function(self, callback, ...)

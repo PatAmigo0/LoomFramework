@@ -1,13 +1,11 @@
 --!strict
 --[[
-	Reads the game's optional `ReplicatedStorage.LoomConfig` module (see Types.LoomConfig), checks it and fills in
-	the defaults from `DEFAULTS` below. Without a LoomConfig module, or for any field it leaves out, Loom uses the
-	default, so a game only writes the settings it wants to change.
+	Loom's settings: the game's optional `ReplicatedStorage.LoomConfig` module (see Types.LoomConfig) on top of
+	`DEFAULTS` below. Fields the module leaves out, or all of them if there's no module, keep their default.
+	Unknown keys and wrong types are errors.
 
-	It's loaded on first use, not when Loom loads, so LoomConfig can require Loom. Nothing in Loom may call
-	`Config.get()` while Loom's own modules are still loading.
-
-	Unknown keys are errors, so a typo like `RateLimt` can't silently leave a setting at its default.
+	The module is read on the first `Config.get()`, so it can require Loom. Don't call `Config.get()` while Loom's
+	own modules are loading.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +14,7 @@ local RunService = game:GetService("RunService")
 local LoomRoot = script.Parent.Parent
 local Types = require(LoomRoot.Types)
 
+--#region TYPES
 type Check = (player: Player, data: unknown) -> boolean
 
 export type Resolved = {
@@ -34,9 +33,11 @@ export type Resolved = {
 	},
 }
 
+--#endregion
+
+--#region DEFAULTS
 local IS_STUDIO = RunService:IsStudio()
 
--- Every setting's default. A game's LoomConfig overrides these field by field.
 local DEFAULTS = table.freeze({
 	Log = table.freeze({
 		Level = (if IS_STUDIO then "Debug" else "Warn") :: Types.LogLevel,
@@ -51,14 +52,21 @@ local DEFAULTS = table.freeze({
 	}),
 })
 
+--#endregion
+
+--#region STATE
 local LEVELS: { [string]: true } = { Trace = true, Debug = true, Info = true, Warn = true, Error = true, None = true }
 table.freeze(LEVELS)
 
+local cached: Resolved? = nil
+--#endregion
+
+--#region LOCAL
 local function fail(path: string, expected: string, value: unknown): never
 	error(`LoomConfig.{path} must be {expected}, got {typeof(value)} {value}`, 0)
 end
 
--- Errors on keys outside `allowed`, and unless `value` is nil or a table. Returns it as a table (empty if nil).
+-- `value` as a table (empty if nil). Errors if it isn't a table or has keys outside `allowed`.
 local function section(value: unknown, path: string, allowed: { string }): { [string]: unknown }
 	if value == nil then
 		return {}
@@ -99,10 +107,8 @@ local function boolean(value: unknown, path: string, default: boolean): boolean
 	return value
 end
 
-local Config = {}
-
---- Why `value` isn't a rate limit (`{ Requests = n, Window = seconds }`), or nil if it is one.
-function Config.rateLimitProblem(value: unknown): string?
+-- Why `value` isn't a rate limit (`{ Requests = n, Window = seconds }`), or nil if it is one.
+local function rateLimitProblem(value: unknown): string?
 	if type(value) ~= "table" then
 		return `must be false or \{ Requests = n, Window = seconds }, got {typeof(value)} {value}`
 	end
@@ -121,6 +127,7 @@ function Config.rateLimitProblem(value: unknown): string?
 	return nil
 end
 
+-- Reads LoomConfig, checks it and fills in the defaults.
 local function load(): Resolved
 	local module = ReplicatedStorage:FindFirstChild("LoomConfig")
 	local raw: unknown = nil
@@ -161,7 +168,7 @@ local function load(): Resolved
 
 	local rateLimit = if net.RateLimit == nil then DEFAULTS.Net.RateLimit else nil
 	if net.RateLimit ~= nil and net.RateLimit ~= false then
-		local problem = Config.rateLimitProblem(net.RateLimit)
+		local problem = rateLimitProblem(net.RateLimit)
 		if problem then
 			error(`LoomConfig.Net.RateLimit {problem}`, 0)
 		end
@@ -186,17 +193,25 @@ local function load(): Resolved
 	return resolved
 end
 
-local resolved: Resolved? = nil
+--#endregion
 
---- The checked config with defaults filled in. Loaded on the first call.
+--#region API
+local Config = {}
+
+--- Why `value` isn't a valid `RateLimit`, or nil if it is one.
+Config.rateLimitProblem = rateLimitProblem
+
+--- The checked config with defaults filled in. Read on the first call.
 function Config.get(): Resolved
-	local current = resolved
+	local current = cached
 	if current then
 		return current
 	end
 	local loaded = load()
-	resolved = loaded
+	cached = loaded
 	return loaded
 end
+
+--#endregion
 
 return table.freeze(Config)

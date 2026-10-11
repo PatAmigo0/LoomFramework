@@ -4,7 +4,7 @@ local Types = require(script.Parent.Parent.Types)
 
 type ObjectSet = { [unknown]: true }
 
--- method -> objects currently running it. Weak, so it never keeps a method or an object alive.
+-- method -> objects currently running it.
 local running = setmetatable({} :: { [unknown]: ObjectSet }, { __mode = "k" })
 
 --- Ignores calls while the same method is already running on the same object (e.g. it's yielding).

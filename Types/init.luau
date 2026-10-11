@@ -17,22 +17,20 @@ local TrovePackage = require(Packages.trove)
 -- selene: allow(unused_variable) -- only used in a type position (`typeof`), which selene doesn't see
 local ComponentUtil = require(LoomRoot.Core.Component.Util)
 
--- ==========================================
--- VENDORS
--- ==========================================
+--#region VENDORS
 export type Signal<T...> = SignalPackage.Signal<T...>
 export type Connection = SignalPackage.Connection
 export type Trove = TrovePackage.Trove
 export type Promise = PromisePackage.Promise
 export type TypedPromise<T...> = PromisePackage.TypedPromise<T...>
 
--- ==========================================
--- DEBUGGER
--- ==========================================
+--#endregion
+
+--#region DEBUGGER
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error" | "None"
 
 --- `self.Debugger` on services, controllers and component instances (see Core/Debugger). With extra arguments
---- the message is a `string.format` pattern, formatted only when the level is on.
+--- the message is a `string.format` pattern.
 export type Debugger = {
 	read Name: string,
 	read Trace: (self: Debugger, message: string, ...unknown) -> (),
@@ -45,9 +43,9 @@ export type Debugger = {
 	read IsEnabled: (self: Debugger, level: LogLevel) -> boolean,
 }
 
--- ==========================================
--- CONFIG
--- ==========================================
+--#endregion
+
+--#region CONFIG
 --- What `ReplicatedStorage.LoomConfig` returns. Every field is optional. It's a module, so branch on
 --- `RunService:IsStudio()` for different test and live values. It can require Loom (e.g. for `Loom.Middleware`).
 export type LoomConfig = {
@@ -73,9 +71,9 @@ export type LoomConfig = {
 	}?,
 }
 
--- ==========================================
--- NETWORKING
--- ==========================================
+--#endregion
+
+--#region NETWORKING
 export type Reliability = "reliable" | "unreliable"
 
 --- Runs on the server for every packet a client sends, before any listener sees it.
@@ -171,9 +169,9 @@ export type ServerNet<N> = PacketView<N, "sendToAll" | "sendTo" | "sendToList" |
 --- A `Net` table as the client sees it: only `send`, `listen` and `wait`.
 export type ClientNet<N> = PacketView<N, "send" | "listen" | "wait">
 
--- ==========================================
--- SERVICES & CONTROLLERS
--- ==========================================
+--#endregion
+
+--#region SERVICES & CONTROLLERS
 --- A service (server): your members `M` plus everything Loom injects.
 --- `N` is its networking table, usually `typeof(MyServiceDef.Net)`.
 export type Service<M, N = nil> = M & {
@@ -201,18 +199,18 @@ export type Controller<M, N = nil> = M & {
 	LoomStart: (self: Controller<M, N>) -> (),
 }
 
--- ==========================================
--- DECORATORS
--- ==========================================
+--#endregion
+
+--#region DECORATORS
 --- Wraps a method: call `callback(self, ...)` to run it (and pass its results on), or don't, to block the call.
 export type Decorator<Self> = (self: Self, callback: (Self, ...any) -> ...any, ...any) -> ...any
 
 --- A decorator that fits a method of any object (most built-in decorators are this).
 export type AnyDecorator = <Self>(self: Self, callback: (Self, ...any) -> ...any, ...any) -> ...any
 
--- ==========================================
--- COMPONENTS
--- ==========================================
+--#endregion
+
+--#region COMPONENTS
 export type ComponentUtil = typeof(ComponentUtil)
 
 --- `self` inside a component method: your members `T` plus what Loom gives every component instance.
@@ -269,5 +267,6 @@ export type Component<T, I = Instance> = T & {
 		timeout: number?
 	) -> TypedPromise<ComponentInstance<T, I>>,
 }
+--#endregion
 
 return nil
