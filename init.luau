@@ -22,7 +22,7 @@
 	    function ShopService:Buy(player, item) ... end
 	    return ShopService
 
-	Every public type is in `Loom.Types`.
+	Every public type is defined in `Loom.Types` and re-exported here (`Loom.Service<...>`).
 ]]
 
 local RunService = game:GetService("RunService")
@@ -38,6 +38,35 @@ local Decorate = require(script.Core.Decorate)
 local Net = require(script.Core.Net)
 local Registry = require(script.Core.Registry)
 local Schema = require(script.Core.Schema)
+
+--#region TYPES
+-- Every public type from `Types`, so `require(Loom)` gives `Loom.Service<...>`. pesde's package link forwards only
+-- the types this module exports.
+export type Signal<T...> = Types.Signal<T...>
+export type Connection = Types.Connection
+export type Trove = Types.Trove
+export type Promise = Types.Promise
+export type TypedPromise<T...> = Types.TypedPromise<T...>
+export type LogLevel = Types.LogLevel
+export type Debugger = Types.Debugger
+export type LoomConfig = Types.LoomConfig
+export type Reliability = Types.Reliability
+export type Middleware<T> = Types.Middleware<T>
+export type RateLimitConfig = Types.RateLimitConfig
+export type PacketDef<T> = Types.PacketDef<T>
+export type Packet<T> = Types.Packet<T>
+export type ByteNet = Types.ByteNet
+export type ServerNet<N> = Types.ServerNet<N>
+export type ClientNet<N> = Types.ClientNet<N>
+export type Service<M, N = nil> = Types.Service<M, N>
+export type Controller<M, N = nil> = Types.Controller<M, N>
+export type Decorator<Self> = Types.Decorator<Self>
+export type AnyDecorator = Types.AnyDecorator
+export type ComponentUtil = Types.ComponentUtil
+export type ComponentInstance<T, I = Instance> = Types.ComponentInstance<T, I>
+export type ComponentExtension<Self> = Types.ComponentExtension<Self>
+export type Component<T, I = Instance> = Types.Component<T, I>
+--#endregion
 
 local Loom = {
 	IS_STUDIO = RunService:IsStudio(),
