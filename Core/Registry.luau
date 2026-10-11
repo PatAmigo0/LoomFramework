@@ -6,17 +6,18 @@
 	  1. connects every `Net`, so any service can use any packet from its `LoomInit`;
 	  2. runs every `LoomInit` at the same time (an init may yield) and waits for all of them;
 	  3. spawns `LoomStart` for everything that initialized, highest `Priority` first.
-	A failure is logged and only takes the failing service out.
+	A failure is logged and only takes the failing service out. An init still running after
+	`LoomConfig.Spin.SlowInitWarning` seconds gets a warning, since nothing starts until every init has returned.
 ]]
 
 local RunService = game:GetService("RunService")
 
 local LoomRoot = script.Parent.Parent
 local Types = require(LoomRoot.Types)
-local Logger = require(LoomRoot.Vendors.Logger)
 local Promise = require(LoomRoot.Vendors.Promise)
 local Trove = require(LoomRoot.Vendors.Trove)
-local createDebugger = require(script.Parent.Debugger)
+local Config = require(script.Parent.Config)
+local Debugger = require(script.Parent.Debugger)
 local Net = require(script.Parent.Net)
 
 local KIND = if RunService:IsServer() then "Service" else "Controller"
@@ -28,13 +29,23 @@ type Entry = {
 	Name: string,
 	Priority: number,
 	Net: { [string]: unknown }?,
-	Debugger: Types.LogItem,
+	Debugger: Types.Debugger,
 	Trove: Types.Trove,
 	LoomInit: Hook?,
 	LoomStart: Hook?,
 }
 
-local logger = Logger.new()
+-- Loom's own messages. Made on first use: LoomConfig (which sets its level) is only read once Loom has loaded.
+local loomDebugger: Types.Debugger? = nil
+local function debugger(): Types.Debugger
+	local current = loomDebugger
+	if current then
+		return current
+	end
+	local created = Debugger.new("Loom")
+	loomDebugger = created
+	return created
+end
 local entries: { Entry } = {}
 local woven: { [string]: true } = {}
 local spun = false
@@ -43,7 +54,7 @@ local spun = false
 -- and pcall only where it cleans up and rethrows.
 local function logFailure(entry: Entry, step: string): (unknown) -> ()
 	return function(err)
-		logger:AtWarning():Log(`{KIND} {entry.Name} failed in {step}: {debug.traceback(tostring(err), 2)}`)
+		debugger():Warn("%s %s failed in %s: %s", KIND, entry.Name, step, debug.traceback(tostring(err), 2))
 	end
 end
 
@@ -79,8 +90,19 @@ local function initAll(ready: { Entry }): { [Entry]: boolean }
 	end
 
 	if remaining > 0 then
+		local seconds = Config.get().Spin.SlowInitWarning
+		local slowWarning = task.delay(seconds, function()
+			local names: { string } = {}
+			for _, entry in ready do
+				if initialized[entry] == nil then
+					table.insert(names, entry.Name)
+				end
+			end
+			debugger():Warn("LoomInit still running after %* seconds: %s", seconds, table.concat(names, ", "))
+		end)
 		waiting = coroutine.running()
 		coroutine.yield()
+		task.cancel(slowWarning)
 	end
 	return initialized
 end
@@ -106,7 +128,7 @@ function Registry.Weave<S>(service: S): S
 
 	woven[entry.Name] = true
 	entry.Priority = entry.Priority or 0
-	entry.Debugger = createDebugger(entry.Name)
+	entry.Debugger = Debugger.new(entry.Name)
 	entry.Trove = Trove.new()
 	table.insert(entries, entry)
 

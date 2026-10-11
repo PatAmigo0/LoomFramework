@@ -9,6 +9,9 @@ local Util = require(LoomRoot.Core.Component.Util)
 --- `method(self, hit, player, ...)`.
 return function(aliveOnly: boolean?): Types.AnyDecorator
 	return function(self, callback, hit: BasePart | Model, ...)
+		if typeof(hit) ~= "Instance" then
+			return
+		end
 		local player = if hit:IsA("Model") then Util.GetPlayerFromModel(hit) else Util.GetPlayerFromPart(hit)
 		if not player or (aliveOnly and not Util.IsAlive(player)) then
 			return

@@ -11,7 +11,6 @@
 local LoomRoot = script.Parent
 local Packages = LoomRoot.roblox_packages
 
-local LoggerPackage = require(Packages.typed_logger)
 local PromisePackage = require(Packages["typed-promise"])
 local SignalPackage = require(Packages.signal)
 local TrovePackage = require(Packages.trove)
@@ -21,13 +20,58 @@ local ComponentUtil = require(LoomRoot.Core.Component.Util)
 -- ==========================================
 -- VENDORS
 -- ==========================================
-export type Logger = LoggerPackage.Logger
-export type LogItem = LoggerPackage.LogItem
 export type Signal<T...> = SignalPackage.Signal<T...>
 export type Connection = SignalPackage.Connection
 export type Trove = TrovePackage.Trove
 export type Promise = PromisePackage.Promise
 export type TypedPromise<T...> = PromisePackage.TypedPromise<T...>
+
+-- ==========================================
+-- DEBUGGER
+-- ==========================================
+export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error" | "None"
+
+--- `self.Debugger` on services, controllers and component instances (see Core/Debugger). With extra arguments
+--- the message is a `string.format` pattern, formatted only when the level is on.
+export type Debugger = {
+	read Name: string,
+	read Trace: (self: Debugger, message: string, ...unknown) -> (),
+	read Debug: (self: Debugger, message: string, ...unknown) -> (),
+	read Info: (self: Debugger, message: string, ...unknown) -> (),
+	read Warn: (self: Debugger, message: string, ...unknown) -> (),
+	--- Warns with a traceback. Doesn't throw.
+	read Error: (self: Debugger, message: string, ...unknown) -> (),
+	--- Whether a log at `level` would be written; use it to skip work that only feeds a log.
+	read IsEnabled: (self: Debugger, level: LogLevel) -> boolean,
+}
+
+-- ==========================================
+-- CONFIG
+-- ==========================================
+--- What `ReplicatedStorage.LoomConfig` returns. Every field is optional. It's a module, so branch on
+--- `RunService:IsStudio()` for different test and live values. It can require Loom (e.g. for `Loom.Middleware`).
+export type LoomConfig = {
+	Log: {
+		--- Default: "Debug" in Studio, "Warn" in live games.
+		Level: LogLevel?,
+		--- Levels by service/controller Name or component Tag; "Loom" is Loom's own messages.
+		Overrides: { [string]: LogLevel }?,
+	}?,
+	Net: {
+		--- Applied to every client -> server packet that doesn't set its own `RateLimit`. Default: off.
+		RateLimit: (RateLimitConfig | false)?,
+		--- Runs on the server for every client -> server packet, before the packet's own Middleware.
+		Middleware: { (player: Player, data: unknown) -> boolean }?,
+		--- Warn when a rate limit or middleware drops a packet. Default: false.
+		LogDrops: boolean?,
+		--- Seconds a client waits for the server to publish a service's packets. Default: 30.
+		NamespaceTimeout: number?,
+	}?,
+	Spin: {
+		--- Seconds before Loom warns about a LoomInit that hasn't returned. Default: 10.
+		SlowInitWarning: number?,
+	}?,
+}
 
 -- ==========================================
 -- NETWORKING
@@ -38,12 +82,19 @@ export type Reliability = "reliable" | "unreliable"
 --- Return false to drop the packet.
 export type Middleware<T> = (player: Player, data: T) -> boolean
 
+--- At most `Requests` packets per player every `Window` seconds; extra packets are dropped.
+export type RateLimitConfig = { Requests: number, Window: number }
+
 --- What you pass to `Loom.Packet`.
 export type PacketDef<T> = {
 	--- What the packet carries, built from `Loom.Util.ByteNet`, e.g. `ByteNet.struct({ hp = ByteNet.uint8 })`.
 	Schema: T,
 	ReliabilityType: Reliability?,
+	--- Runs on the server after `LoomConfig.Net.Middleware`, in order.
 	Middleware: { Middleware<T> }?,
+	--- This packet's limit for client -> server sends. Leave it out to use `LoomConfig.Net.RateLimit`; `false`
+	--- turns the default off for this packet.
+	RateLimit: (RateLimitConfig | false)?,
 }
 
 export type Packet<T> = {
@@ -100,7 +151,7 @@ type function PacketView(net: type, keep: type): type
 	local view = types.newtable()
 	for name, property in net:properties() do
 		local packet = property.read
-		if packet then
+		if packet and packet.tag == "table" then
 			local trimmed = types.newtable()
 			for _, member in members do
 				local memberType = packet:readproperty(member)
@@ -129,7 +180,7 @@ export type Service<M, N = nil> = M & {
 	Name: string,
 	Priority: number,
 	Net: ServerNet<N>,
-	Debugger: LogItem,
+	Debugger: Debugger,
 	Trove: Trove,
 
 	-- Lifecycle hooks are optional; Loom skips the ones you don't write. They're typed as required because
@@ -143,7 +194,7 @@ export type Controller<M, N = nil> = M & {
 	Name: string,
 	Priority: number,
 	Net: ClientNet<N>,
-	Debugger: LogItem,
+	Debugger: Debugger,
 	Trove: Trove,
 
 	LoomInit: (self: Controller<M, N>) -> (),
@@ -168,7 +219,7 @@ export type ComponentUtil = typeof(ComponentUtil)
 export type ComponentInstance<T, I = Instance> = T & {
 	Instance: I,
 	Trove: Trove,
-	Debugger: LogItem,
+	Debugger: Debugger,
 	Util: ComponentUtil,
 
 	--- This instance's component of another class, if the Roblox instance has one.
