@@ -4,8 +4,10 @@
 	work once `Loom.Spin` has connected the service or controller that owns the packet. Sending before that errors.
 
 	On the server every incoming packet runs through its checks in this order: its rate limit (`RateLimit`, or
-	`LoomConfig.Net.RateLimit`), `LoomConfig.Net.Middleware`, then its own `Middleware`. The first check that
-	returns false drops the packet; otherwise it goes to every listener.
+	`LoomConfig.Net.RateLimit`), the NaN/inf check (`LoomConfig.Security.RejectNonFinite`),
+	`LoomConfig.Net.Middleware`, then its own `Middleware`. The first check that returns false drops the packet and
+	reports it to Security; otherwise it goes to every listener. Packets from a player Security has blocked are
+	dropped before any check.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -17,6 +19,8 @@ local ByteNet = require(LoomRoot.Vendors.ByteNet)
 local Config = require(script.Parent.Config)
 local Debugger = require(script.Parent.Debugger)
 local Schema = require(script.Parent.Schema)
+local Security = require(script.Parent.Security)
+local Finite = require(LoomRoot.Middleware.Finite)
 local RateLimit = require(LoomRoot.Middleware.RateLimit)
 
 --#region TYPES
@@ -116,6 +120,10 @@ local function buildChecks<T>(definition: PacketDef<T>): ({ Types.Middleware<T> 
 		table.insert(checks, RateLimit(limit.Requests, limit.Window))
 		table.insert(names, `rate limit ({limit.Requests} per {limit.Window}s)`)
 	end
+	if Config.get().Security.RejectNonFinite then
+		table.insert(checks, Finite)
+		table.insert(names, "NaN or inf (Security.RejectNonFinite)")
+	end
 	for i, check in net.Middleware do
 		table.insert(checks, check)
 		table.insert(names, `LoomConfig.Net.Middleware[{i}]`)
@@ -190,14 +198,20 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 		-- ByteNet decoded `data` with this packet's schema, so it is a `T`.
 		local value = data :: T
 
-		if checks and player then
-			for i, check in checks do
-				if not check(player, value) then
-					local log = dropLog
-					if log then
-						log:Warn("Dropped %s from %s: %s", label, player.Name, checkNames[i])
+		if player then
+			if Security.IsBlocked(player) then
+				return
+			end
+			if checks then
+				for i, check in checks do
+					if not check(player, value) then
+						local log = dropLog
+						if log then
+							log:Warn("Dropped %s from %s: %s", label, player.Name, checkNames[i])
+						end
+						Security.Dropped(player, label, checkNames[i])
+						return
 					end
-					return
 				end
 			end
 		end

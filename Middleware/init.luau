@@ -11,4 +11,6 @@ return table.freeze({
 		return Util.IsAlive(player)
 	end,
 	RateLimit = require(script.RateLimit),
+	--- Drops packets with NaN or ±inf anywhere in them. `LoomConfig.Security.RejectNonFinite` applies it to every packet.
+	Finite = require(script.Finite),
 })

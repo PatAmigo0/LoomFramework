@@ -19,6 +19,7 @@ local Trove = require(LoomRoot.Vendors.Trove)
 local Config = require(script.Parent.Config)
 local Debugger = require(script.Parent.Debugger)
 local Net = require(script.Parent.Net)
+local Security = require(script.Parent.Security)
 
 --#region TYPES
 type Hook = (self: Entry) -> ()
@@ -156,6 +157,7 @@ function Registry.Spin(): Types.TypedPromise<()>
 			error("Loom.Spin() was already called")
 		end
 		spun = true
+		Security.Start()
 		table.sort(entries, byPriority)
 
 		local ready: { Entry } = {}

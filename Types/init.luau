@@ -69,6 +69,42 @@ export type LoomConfig = {
 		--- Seconds before Loom warns about a LoomInit that hasn't returned. Default: 10.
 		SlowInitWarning: number?,
 	}?,
+	--- Server-side protection for client -> server traffic. Everything here is off by default.
+	Security: {
+		--- Drop client packets with NaN or ±inf anywhere in them (numbers, Vector2/3, CFrame, Color3). Default: false.
+		RejectNonFinite: boolean?,
+		--- A per-player budget for everything sent to ByteNet's remotes, counted before ByteNet decodes it. A player
+		--- over budget has every packet dropped until the window ends. Default: off.
+		Traffic: TrafficConfig?,
+		--- What to do with a player who keeps causing violations. Default: off (violations only drop packets).
+		Strikes: StrikesConfig?,
+		--- Called on the server for every violation, e.g. for your own logs or bans. Errors in it are caught.
+		OnViolation: ((player: Player, violation: Violation) -> ())?,
+	}?,
+}
+
+--- At least one of `Calls` (remote calls) and `Bytes` (buffer bytes) per player every `Window` seconds.
+export type TrafficConfig = { Calls: number?, Bytes: number?, Window: number }
+
+--- After `Limit` violations within `Window` seconds: `"Kick"` kicks the player (with `KickMessage`), `"Block"` drops
+--- all of their packets for `BlockTime` seconds (default 30).
+export type StrikesConfig = {
+	Limit: number,
+	Window: number,
+	Action: "Kick" | "Block",
+	BlockTime: number?,
+	KickMessage: string?,
+}
+
+--- Something a client sent that Loom rejected.
+--- - `"Drop"`: a rate limit, middleware or `RejectNonFinite` dropped a packet (`Packet` names it).
+--- - `"Traffic"`: the player went over `Security.Traffic`.
+--- - `"Payload"`: a call to ByteNet's remotes that wasn't a ByteNet buffer. The real client never sends one.
+export type Violation = {
+	read Kind: "Drop" | "Traffic" | "Payload",
+	--- "Namespace.Key", for drops.
+	read Packet: string?,
+	read Reason: string,
 }
 
 --#endregion
