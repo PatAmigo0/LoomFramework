@@ -1,9 +1,10 @@
 --!strict
+-- Built-in packet middleware (see Types.Middleware). Any `function(player, data): boolean` works too.
 
-local rateLimit = require(script.RateLimit)
-local isAlive = require(script.IsAlive)
+local Util = require(script.Parent.Core.Component.Util)
 
 return table.freeze({
-	RateLimit = rateLimit,
-	IsAlive = isAlive,
+	--- Drops packets from players without a living character.
+	IsAlive = Util.IsAlive,
+	RateLimit = require(script.RateLimit),
 })

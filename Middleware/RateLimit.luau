@@ -1,25 +1,21 @@
 --!strict
 
-local storage: { [Player]: { count: number, startTime: number }? } = {}
-local playerLimits = setmetatable(storage, { __mode = "k" })
+--- Allows each player at most `maxRequests` packets per `window` seconds; extra packets are dropped.
+--- Every `RateLimit(...)` call has its own counters, so limits on different packets don't add up.
+return function(maxRequests: number, window: number): (player: Player) -> boolean
+	local usage = setmetatable({} :: { [Player]: { count: number, windowStart: number } }, { __mode = "k" })
 
-local function RateLimit(maxRequests: number, window: number)
-	return function(player: Player): boolean
+	return function(player)
 		local now = os.clock()
-		local data = playerLimits[player]
+		local record = usage[player]
 
-		if not data or (now - data.startTime) > window then
-			playerLimits[player] = { count = 1, startTime = os.clock() }
+		if not record or now - record.windowStart > window then
+			usage[player] = { count = 1, windowStart = now }
+			return true
+		elseif record.count < maxRequests then
+			record.count += 1
 			return true
 		end
-
-		if data.count < maxRequests then
-			data.count += 1
-			return true
-		end
-
 		return false
 	end
 end
-
-return RateLimit

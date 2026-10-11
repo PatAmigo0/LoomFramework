@@ -1,6 +1,5 @@
 --!strict
 
-local LoomRoot = script.Parent.Parent
-local Component = require(LoomRoot.roblox_packages.component)
+local Packages = script.Parent.Parent.roblox_packages
 
-return Component
+return require(Packages.component)

@@ -1,10 +1,13 @@
 --!strict
 
-return function(predicate: (...any) -> boolean)
-	return function(self: any, callback: (...any) -> ...any, ...: any)
-		if predicate == nil or predicate(self, ...) == false then
-			return
+local Types = require(script.Parent.Parent.Types)
+
+--- Runs the method only when `predicate(self, ...)` returns true.
+return function<Self>(predicate: (self: Self, ...any) -> boolean): Types.Decorator<Self>
+	return function(self, callback, ...)
+		if predicate(self, ...) then
+			return callback(self, ...)
 		end
-		callback(self, ...)
+		return
 	end
 end

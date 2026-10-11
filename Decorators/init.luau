@@ -1,15 +1,23 @@
 --!strict
+--[[
+	Built-in decorators. Use them in a component's `Decorators` table or with `Loom.Decorate`:
 
-local debounce = require(script.Debounce)
-local timeoutDebounce = require(script.TimeoutDebounce)
-local isPlayer = require(script.IsPlayer)
-local isBusy = require(script.IsBusy)
-local canCall = require(script.CanCall)
+	    function MyService:Reward(player: Player) ... end
+	    Loom.Decorate(MyService, "Reward", Decorators.Cooldown(1, function(player) return player end))
+
+	A decorator is just `function(self, callback, ...) ... return callback(self, ...) end` (see Types.Decorator),
+	so writing your own is easy.
+]]
 
 return table.freeze({
-	Debounce = debounce,
-	TimeoutDebounce = timeoutDebounce,
-	IsPlayer = isPlayer,
-	IsBusy = isBusy,
-	CanCall = canCall,
+	CanCall = require(script.CanCall),
+	Compose = require(script.Compose),
+	Cooldown = require(script.Cooldown),
+	Debounce = require(script.Debounce),
+	IsBusy = require(script.IsBusy),
+	IsPlayer = require(script.IsPlayer),
+	Once = require(script.Once),
+	Profile = require(script.Profile),
+	Safe = require(script.Safe),
+	Spawn = require(script.Spawn),
 })

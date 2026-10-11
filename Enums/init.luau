@@ -1,13 +1,10 @@
 --!strict
 
-local LoomTypeEnum = require(script.LoomTypeEnum)
-local ReliabilityTypeEnum = require(script.ReliabilityTypeEnum)
-local NetworkNamespaceEnum = require(script.NetworkNamespaceEnum)
+local Reliability = table.freeze({
+	Reliable = "reliable" :: "reliable",
+	Unreliable = "unreliable" :: "unreliable",
+})
 
-local Enums = {
-	ReliabilityTypeEnum = ReliabilityTypeEnum,
-	NetworkNamespaceEnum = NetworkNamespaceEnum,
-	LoomTypeEnum = LoomTypeEnum,
-}
-
-return table.freeze(Enums)
+return table.freeze({
+	Reliability = Reliability,
+})

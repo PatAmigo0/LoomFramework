@@ -1,184 +1,113 @@
 --!strict
+--[[
+	Loom: services, controllers and components with typed ByteNet networking.
 
--- ==========================================
--- DEPENDENCIES
--- ==========================================
+	    -- Shared/Schemas/ShopService.luau: what both sides know (the name and the packets)
+	    return Loom.Define({
+	        Name = "ShopService",
+	        Net = {
+	            Bought = Loom.Packet({ Schema = ByteNet.struct({ item = ByteNet.string, price = ByteNet.uint16 }) }),
+	        },
+	    })
+
+	    -- ServerAPI: the typed contract, one type per service
+	    export type ShopService = Types.Service<{
+	        Buy: (self: ShopService, player: Player, item: string) -> (),
+	    }, typeof(ShopServiceDef.Net)>
+	    ...
+	    ShopService = ShopServiceDef :: ShopService,
+
+	    -- Services/ShopService.luau: the implementation
+	    local ShopService = Loom.Weave(API.ShopService)
+	    function ShopService:Buy(player, item) ... end
+	    return ShopService
+
+	Every public type is in `Loom.Types`.
+]]
+
 local RunService = game:GetService("RunService")
 
-local PrivateTypes = require(script.Types.Private)
---selene: allow(unused_variable)
-local PublicTypes = require(script.Types.Public)
-local Enums = require(script.Enums)
-local Middleware = require(script.Middleware)
-local Decorators = require(script.Decorators)
+local Types = require(script.Types)
 local Vendors = require(script.Vendors)
-local Core = require(script.Core)
+local Enums = require(script.Enums)
+local Decorators = require(script.Decorators)
+local Middleware = require(script.Middleware)
+local Component = require(script.Core.Component)
+local Decorate = require(script.Core.Decorate)
+local Net = require(script.Core.Net)
+local Registry = require(script.Core.Registry)
+local Schema = require(script.Core.Schema)
 
-local Logger = Vendors.Logger
-local Promise = Vendors.Promise
-local ByteNet = Vendors.ByteNet
-local Sift = Vendors.Sift
-local Signal = Vendors.Signal
-local Trove = Vendors.Trove
+local Loom = {
+	IS_STUDIO = RunService:IsStudio(),
+	IS_SERVER = RunService:IsServer(),
 
-local ControllerManager = Core.ControllerManager
-local ServiceManager = Core.ServiceManager
-local ComponentCore = Core.Component
-
--- ==========================================
--- ENVIRONMENT & EXPORTS
--- ==========================================
-local IS_STUDIO = RunService:IsStudio()
-local IS_SERVER = RunService:IsServer()
-
-local Loom = {}
-
-Loom.Util = {
-	ByteNet = ByteNet,
-	Promise = Promise,
-	Sift = Sift,
-	Logger = Logger,
-	Signal = Signal,
-	Trove = Trove,
+	Util = table.freeze({
+		ByteNet = Schema.ByteNet,
+		Promise = Vendors.Promise,
+		Sift = Vendors.Sift,
+		Logger = Vendors.Logger,
+		Signal = Vendors.Signal,
+		Trove = Vendors.Trove,
+	}),
+	Enums = Enums,
+	Decorators = Decorators,
+	Middleware = Middleware,
 }
 
-Loom.Enums = {
-	Reliability = Enums.ReliabilityTypeEnum,
-	Network = Enums.NetworkNamespaceEnum,
-	LoomType = Enums.LoomTypeEnum,
-}
+--- Declares a service/controller: its `Name`, an optional `Priority` (higher starts first) and an optional `Net`
+--- table of `Loom.Packet`s. Returns the table typed exactly as written, so `typeof(Def.Net)` is its Net type.
+function Loom.Define<D>(definition: D & { read Name: string }): D
+	local fields = definition :: { Name: unknown, Priority: unknown, Net: unknown }
 
-Loom.Decorators = Decorators
-Loom.Middleware = Middleware
-
-Loom.IS_STUDIO = IS_STUDIO
-Loom.IS_SERVER = IS_SERVER
-
--- ==========================================
--- INTERNAL UTILITIES
--- ==========================================
-local function initializeByteNet(def: any)
-	if not def.Net then
-		return
+	if type(fields.Name) ~= "string" then
+		error("Loom.Define: Name must be a string", 2)
+	elseif fields.Priority ~= nil and type(fields.Priority) ~= "number" then
+		error(`Loom.Define: {fields.Name}.Priority must be a number`, 2)
 	end
 
-	local clientMap = def.Net :: any
-	local registeredPackets = ByteNet.defineNamespace(def.Name, function()
-		return Sift.Dictionary.map(clientMap, function(packetDef)
-			local schema = packetDef.Schema
-
-			if type(schema) == "function" then
-				schema = schema()
-			end
-
-			return ByteNet.definePacket({
-				value = schema,
-				reliabilityType = packetDef.ReliabilityType,
-				callbackBehavior = packetDef.CallbackBehavior,
-			} :: PublicTypes.ByteNetPacket<any>)
-		end) :: { [string]: PublicTypes.Packet<any> }
-	end)
-
-	clientMap = Sift.Dictionary.map(registeredPackets, function(packet, methodName)
-		local originalDef = clientMap[methodName] :: PrivateTypes.PacketDef<any>
-		local normalizedPacket: PublicTypes.Packet<any> = type(packet) == "function" and packet() or packet
-
-		local customPacket = setmetatable({}, {
-			__index = normalizedPacket,
-		})
-
-		if IS_SERVER and originalDef.Middleware then
-			local originalListen = normalizedPacket.listen
-			customPacket.listen = function(callback)
-				originalListen(function(data, player)
-					for _, middlewareFilter in ipairs(originalDef.Middleware) do
-						local sender = player :: Player
-						if not middlewareFilter(sender, data) then
-							return
-						end
-					end
-					callback(data, player)
-				end)
+	local net = fields.Net
+	if net ~= nil then
+		if type(net) ~= "table" then
+			error(`Loom.Define: {fields.Name}.Net must be a table of Loom.Packet`, 2)
+		end
+		for key, packet in net :: { [unknown]: unknown } do
+			if not Net.IsPacket(packet) then
+				error(`Loom.Define: {fields.Name}.Net.{key} isn't a Loom.Packet`, 2)
 			end
 		end
-
-		return table.freeze(customPacket)
-	end)
-
-	def.Net = clientMap
-end
-
-local function injectUtilities(item: any)
-	local newLogger = Logger.new() :: any
-	newLogger._name = item.Name
-	item.Debugger = table.freeze(newLogger:AtDebug())
-	item.Trove = Trove.new()
-end
-
--- ==========================================
--- PUBLIC API: SCHEMAS & DEFINITIONS
--- ==========================================
-function Loom.Define<T, N>(def: PublicTypes.LoomSchema<T, N>, net: N?): PublicTypes.LoomSchema<T, N>
-	if net then
-		def.Net = net
+		table.freeze(net)
 	end
 
-	return def
+	return definition
 end
 
-function Loom.Packet<T>(packetDef: PrivateTypes.PacketDef<T>): PublicTypes.Packet<T>
-	return packetDef :: any
+--- A packet for a `Net` table. Its payload type comes from `Schema`, e.g. `ByteNet.struct({ hp = ByteNet.uint8 })`.
+function Loom.Packet<T>(definition: Types.PacketDef<T>): Types.Packet<T>
+	return Net.CreatePacket(definition)
 end
 
-function Loom.Unseal<T>(schema: any): T
-	return schema :: any
+--- Registers a service (server) or controller (client) for `Loom.Spin` and gives it its `Debugger` and `Trove`.
+--- Returns the same table: define its methods on it.
+function Loom.Weave<S>(service: S): S
+	return Registry.Weave(service)
 end
 
-function Loom.VerifyNetSchema<N>(net: N): N
-	for key, packet in pairs(net :: any) do
-		local typedPacket = packet :: PrivateTypes.PacketDef<any>
-		if key ~= "Middleware" and (type(typedPacket) ~= "table" or not typedPacket.Schema) then
-			error(`Key '{key}' is not a ByteNet Packet, verify failed`)
-		end
-	end
-
-	return net
-end
--- ==========================================
--- PUBLIC API: LIFECYCLE & INJECTION
--- ==========================================
-
-function Loom.Weave<T, N>(schema: PublicTypes.LoomSchema<T, N>): PublicTypes.LoomClass<T, N>
-	initializeByteNet(schema)
-	injectUtilities(schema)
-	if IS_SERVER then
-		return ServiceManager.Register(schema) :: any
-	else
-		return ControllerManager.Register(schema) :: any
-	end
+--- Creates a component class. Returns the class: define its methods on it.
+function Loom.Component<S>(definition: S): S
+	return Component.Define(definition)
 end
 
-function Loom.Component<T, I>(def: PublicTypes.ComponentSchema<T, I>): PublicTypes.ComponentClass<T, I>
-	return ComponentCore.Define(def :: any) :: any
+--- Decorates a method that's already defined on a service, controller or component class.
+--- Decorators run in the order given (the first one is outermost).
+function Loom.Decorate<S, Self>(target: S, method: keyof<S>, ...: Types.Decorator<Self>)
+	Decorate.member(target :: { [string]: unknown }, method, { ... }, 2)
 end
 
-function Loom.Resolve(name: string): any
-	if IS_SERVER then
-		return ServiceManager.Get(name)
-	else
-		return ControllerManager.Get(name)
-	end
-end
-
-function Loom.Spin()
-	return Promise.new(function(resolve)
-		if IS_SERVER then
-			ServiceManager.Start()
-		else
-			ControllerManager.Start()
-		end
-		resolve()
-	end)
+--- Connects every woven Net, runs every LoomInit, then every LoomStart. Require all of your
+--- service/controller modules first.
+function Loom.Spin(): Types.TypedPromise<()>
+	return Registry.Spin()
 end
 
 return table.freeze(Loom)

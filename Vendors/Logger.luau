@@ -1,9 +1,5 @@
 --!strict
 
-local LoomRoot = script.Parent.Parent
-local Logger = require(LoomRoot.roblox_packages.typed_logger)
+local Packages = script.Parent.Parent.roblox_packages
 
-export type Logger = Logger.Logger
-export type LogItem = Logger.LogItem
-
-return table.freeze(Logger)
+return require(Packages.typed_logger)

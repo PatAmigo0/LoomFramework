@@ -1,5 +1,5 @@
 name = "tohue/loom"
-version = "0.3.0"
+version = "0.4.0"
 description = "custom framework which is using modern luau types and ByteNet for the insane traffic speed"
 authors = ["PatAmigos_0"]
 license = "MIT"
@@ -7,18 +7,20 @@ repository = "https://github.com/PatAmigo0/LoomFramework"
 
 includes = [
     "Core/**/*.luau",
+    "Decorators/**/*.luau",
     "Enums/**/*.luau",
     "Types/**/*.luau",
     "Vendors/**/*.luau",
     "Middleware/**/*.luau",
     "init.luau",
+    "CHANGELOG.md",
     "pesde.toml",
 ]
 
 [target]
 environment = "roblox"
 lib = "init.luau"
-build_files = ["Core", "Enums", "Types", "Vendors", "Middleware"]
+build_files = ["Core", "Decorators", "Enums", "Types", "Vendors", "Middleware"]
 
 [wally_indices]
 default = "https://github.com/UpliftGames/wally-index"
