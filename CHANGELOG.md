@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 (2026-10-11)
+
+No behaviour changes. Comments say what each function does, and the core modules are split into `--#region` blocks (TYPES, STATE, LOCAL, API; Config also has DEFAULTS) so the helpers fold away. `Types` uses one region per section.
+
 ## 0.5.0 (2026-10-11)
 
 Breaking: `self.Debugger` is Loom's own logger now (`Debugger:Log` becomes `Debugger:Debug`, and `Loom.Util.Logger` becomes `Loom.Util.Debugger`). Everything else is additive: LoomConfig, side-specific packet types, component lifecycle fixes and runtime checks.
