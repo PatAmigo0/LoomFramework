@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Loom is on Wally too, as `tohue/loom`, starting with 0.5.2. The code is the same as the pesde package. `scripts/wally.sh` builds the Wally package from `pesde.toml` (version, metadata, dependencies) and points the dependency requires at Wally's layout, where a package's dependencies sit next to it instead of in its `roblox_packages`. `scripts/wally.sh publish` uploads it.
+
 ## 0.5.2 (2026-10-11)
 
 - `init.luau` re-exports every public type from `Types`, so `local Loom = require(Packages.loom)` gives `Loom.Service<M, N>`, `Loom.LoomConfig` and the rest. pesde's package link only forwards the types the main module exports, so a pesde install couldn't reach them before without a path that includes the version. `Types` is still where they're defined.
