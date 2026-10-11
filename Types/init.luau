@@ -88,15 +88,47 @@ export type ByteNet = {
 	unknown: unknown,
 }
 
+--- Rebuilds every packet in a `Net` table with only the members named in `Keep` (a union of string
+--- singletons). A service and a controller share one `Net` definition, but each side may only call its own
+--- half of a packet; this is what keeps the other half out of autocomplete.
+type function PacketView(net: type, keep: type): type
+	if net.tag ~= "table" then
+		return net -- a service without a Net
+	end
+
+	local members = if keep.tag == "union" then keep:components() else { keep }
+	local view = types.newtable()
+	for name, property in net:properties() do
+		local packet = property.read
+		if packet then
+			local trimmed = types.newtable()
+			for _, member in members do
+				local memberType = packet:readproperty(member)
+				if memberType then
+					trimmed:setreadproperty(member, memberType)
+				end
+			end
+			view:setreadproperty(name, trimmed)
+		end
+	end
+	return view
+end
+
+--- A `Net` table as the server sees it: no `send`, which is client -> server only.
+export type ServerNet<N> = PacketView<N, "sendToAll" | "sendTo" | "sendToList" | "sendToAllExcept" | "listen" | "wait">
+
+--- A `Net` table as the client sees it: only `send`, `listen` and `wait`.
+export type ClientNet<N> = PacketView<N, "send" | "listen" | "wait">
+
 -- ==========================================
 -- SERVICES & CONTROLLERS
 -- ==========================================
---- A service (server) or controller (client): your members `M` plus everything Loom injects.
+--- A service (server): your members `M` plus everything Loom injects.
 --- `N` is its networking table, usually `typeof(MyServiceDef.Net)`.
 export type Service<M, N = nil> = M & {
 	Name: string,
 	Priority: number,
-	Net: N,
+	Net: ServerNet<N>,
 	Debugger: LogItem,
 	Trove: Trove,
 
@@ -106,7 +138,17 @@ export type Service<M, N = nil> = M & {
 	LoomStart: (self: Service<M, N>) -> (),
 }
 
-export type Controller<M, N = nil> = Service<M, N>
+--- A controller (client): like `Service`, but its packets show only what a client can call.
+export type Controller<M, N = nil> = M & {
+	Name: string,
+	Priority: number,
+	Net: ClientNet<N>,
+	Debugger: LogItem,
+	Trove: Trove,
+
+	LoomInit: (self: Controller<M, N>) -> (),
+	LoomStart: (self: Controller<M, N>) -> (),
+}
 
 -- ==========================================
 -- DECORATORS

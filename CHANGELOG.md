@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Services and controllers see different halves of each packet. `Service.Net` uses `ServerNet<N>` (no `send`) and `Controller.Net` uses `ClientNet<N>` (only `send`, `listen` and `wait`), so autocomplete offers only what works on that side and a wrong-side call is a type error. A `PacketView` type function builds both views from the one shared `Net` type. The runtime error stubs stay as a backstop.
+- `Middleware.IsAlive` and `Middleware.RateLimit(...)` take `(player, data)`. As one-parameter functions they made the solver put an error type into the payload type of any packet that used them (`Packet<*error-type* | number>`), which left that packet's `data` partly unchecked. Write your own middleware with both parameters too.
+
 ## 0.4.0 (2026-10-11)
 
 This release rewrites Loom's types for Luau's new type solver and reshapes the API around them. Services, controllers and components get a typed `self`, typed packets and inferred payloads without any `:: any` in game code, and a service takes one line to set up instead of two passes.
