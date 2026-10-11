@@ -25,7 +25,7 @@ With Wally, add Loom to `wally.toml` and run `wally install`:
 
 ```toml
 [dependencies]
-loom = "tohue/loom@0.5.2"
+loom = "tohue/loom@0.6.0"
 ```
 
 The examples below use the alias `loom`, so `require(Packages.loom)` works with either. Wally's generated `Packages/loom.lua` returns the module but drops its exported types; run [wally-package-types](https://github.com/JohnnyMorganz/wally-package-types) after each install (`wally-package-types --sourcemap sourcemap.json Packages/`) to get `Loom.Service<M, N>` and the other types back.

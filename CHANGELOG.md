@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (2026-10-12)
+
+Additive: server-side security settings, and Loom is on Wally.
 
 - `LoomConfig.Security`: server-side protection for client packets. Every part is off by default; the README's Security section has the details.
   - `RejectNonFinite` drops packets with NaN or ±inf anywhere in them. The same check is `Loom.Middleware.Finite` for single packets.
@@ -8,7 +10,7 @@
   - `Strikes = { Limit, Window, Action, BlockTime?, KickMessage? }` kicks or blocks a player after too many violations. Dropped packets, traffic overruns and non-buffer remote calls all count.
   - `OnViolation(player, violation)` gets every violation, for your own logs or bans. New types: `TrafficConfig`, `StrikesConfig`, `Violation`.
 - A Makefile for releases: `make wally`, `make wally-login`, `make wally-publish`, `make pesde-publish` and `make publish` (both). When `github-https` is on PATH, wally runs through it, so a git rule that rewrites GitHub HTTPS to SSH doesn't break the index clone.
-- Loom is on Wally too, as `tohue/loom`, starting with 0.5.2. The code is the same as the pesde package. `scripts/wally.sh` builds the Wally package from `pesde.toml` (version, metadata, dependencies) and points the dependency requires at Wally's layout, where a package's dependencies sit next to it instead of in its `roblox_packages`. `scripts/wally.sh publish` uploads it.
+- Loom is on Wally too, as `tohue/loom`, starting with this release. The code is the same as the pesde package. `scripts/wally.sh` builds the Wally package from `pesde.toml` (version, metadata, dependencies) and points the dependency requires at Wally's layout, where a package's dependencies sit next to it instead of in its `roblox_packages`. `scripts/wally.sh publish` uploads it.
 
 ## 0.5.2 (2026-10-11)
 
