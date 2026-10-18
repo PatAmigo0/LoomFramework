@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.7.0 (2026-10-18)
+
+Breaking: packets go through QuickNet instead of ByteNet, so schemas are written differently. The packet API itself (`send`, `sendTo`, `listen`, `wait` and the rest) hasn't changed.
+
+### QuickNet replaces ByteNet
+
+QuickNet's published benchmarks show roughly three to nine times ByteNet's frame rate at about the same bandwidth, and ByteNet crashed on the strings and dictionary tests. It also catches its own decode errors, where ByteNet threw from its receive loop.
+
+- Loom ships QuickNet 0.4.0 (commit `edba9a2`) in `Vendors/QuickNet`, because Wally only has 0.3.5. There's one patch, marked "Loom patch" in `Parser.luau`: QuickNet read `{ hp = QuickNet.NumberU8 }` as a dictionary type keyed by the string `"hp"` and errored, so one-field structs didn't work.
+- `Loom.Util.ByteNet` is now `Loom.Util.QuickNet`, and the `ByteNet` type is `QuickNet`. Schemas are plain tables: `ByteNet.struct({ hp = ByteNet.uint8 })` becomes `{ hp = QuickNet.NumberU8 }`, `ByteNet.array(x)` becomes `{ x }` and `ByteNet.map(k, v)` becomes `{ [k] = v }`. The data types have QuickNet's names: `uint8` is `NumberU8`, `int32` is `NumberI32`, `float32` is `NumberF32`, `bool` is `Boolean`, `vec3` is `Vector3F32`, `cframe` is `CFrameF32`, `buff` is `Buffer`, `inst` is `Instance`, `nothing` is `Nil` and `unknown` is `Any`. Watch `string`: QuickNet's `String` holds at most 255 characters, and `StringLong` is the one for longer text.
+- New in schemas: fixed-point vectors and CFrames, `literal`, `union`, `custom` encoders, and types like `Color3`, `UDim2`, `Player` and `EnumItem`. `LoomConfig.Net.EnumItems` lists the EnumItems `EnumItem` can carry.
+- `Loom.Packet` checks the schema straight away and errors at the call, instead of failing during `Loom.Spin`.
+- Loom copies each schema before QuickNet registers it. QuickNet rewrites `optional` and `union` tables in place, so one shared between two packets broke the second.
+- Each packet is a QuickNet event named `Namespace_Key`. QuickNet keeps event ids in attributes, so service names and packet keys follow attribute rules: letters, digits and `_`. A game can have at most 255 packets.
+- A client that gets a packet it hasn't registered drops it and the rest of that frame's batch. Every service that sends to clients needs a controller woven on the client.
+- The client loads QuickNet when it connects its first packet, since QuickNet starts reading server traffic the moment it loads. Roblox holds that traffic until then.
+- QuickNet's per-event rate limit (60 a second by default) is off. Loom's `RateLimit` covers it and reports drops to Security. QuickNet's own warnings show when Loom's `Warn` level is on.
+- `Security.Traffic` and the payload checks watch QuickNet's two remotes.
+
+### Services as plain tables
+
+A service or controller can skip the API module now. Write it as a plain table with `Net = Loom.ServerNet(Def.Net)` (or `Loom.ClientNet` in a controller), call `Loom.Weave(MyService)` as a statement, type methods with `self: Self` where `type Self = typeof(MyService) & Loom.Woven`, and `return MyService :: Self`. Requiring modules get every method typed, and `self` checks calls to methods defined further down. The README has the full example and why each piece matters. Services that require each other still need an API module.
+
+- `Loom.ServerNet(net)` and `Loom.ClientNet(net)` return a definition's Net table typed for one side. They error on the wrong side, or when the table isn't a `Loom.Define` Net.
+- New type `Woven`: `Priority`, `Debugger` and `Trove`, the fields `Loom.Weave` adds.
+- `Loom.Weave` keeps a `Debugger` or `Trove` the table already has instead of replacing it (replacing a Trove would leak what's in it), and says so with a warning in Studio only.
+
+### Fixes
+
+- Every packet listener runs in a thread of its own. A packet with exactly one listener used to call it straight from the receive loop, while two or more got a thread each, so adding a listener changed how the first one ran. Listeners now go through a `Signal`, which reuses threads.
+- `wait()` no longer tries to resume a thread that was cancelled while it waited.
+- An error in a component's `LoomStart` goes to its Debugger with a traceback. The instance still never counts as started (no per-frame updates, no `Started`), and removing it still runs `LoomDestroy`.
+- An error in `LoomDestroy` is logged instead of thrown, so the Component library still fires `Stopped` and runs the `Stopped` extensions.
+- `Decorators.IsBusy` blocked only on `true` or nil, so a flag set to something like `"casting"` let calls through. The method now runs only while the flag is `false`.
+- `Decorators.Profile` and `Decorators.Debounce` rethrow errors with the traceback from where the method failed.
+- `Decorators.Cooldown` drops expired keys every 64 new ones. Its weak keys never freed keys like a UserId.
+- `Middleware.Finite` checks a CFrame without building a table.
+- The built-in decorators are written as explicitly generic functions (`function<Self>(self: Self, callback, ...)`). luau-lsp 1.70.1 rejects an unannotated function assigned to `AnyDecorator` when that type comes from another module.
+
 ## 0.6.0 (2026-10-12)
 
 Additive: server-side security settings, and Loom is on Wally.

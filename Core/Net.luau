@@ -1,21 +1,30 @@
 --!strict
 --[[
-	Packets. `Loom.Packet` returns the packet right away: `listen` and `wait` work at once, and the send functions
-	work once `Loom.Spin` has connected the service or controller that owns the packet. Sending before that errors.
+	Packets, sent with QuickNet. `Loom.Packet` returns the packet right away: `listen` and `wait` work at once, and
+	the send functions work once `Loom.Spin` has connected the service or controller that owns the packet. Sending
+	before that errors.
+
+	Each packet is one QuickNet event named "Namespace_Key", and QuickNet allows 255 events per game. The server
+	registers its packets during `Loom.Spin`. A client waits for the server's (up to `LoomConfig.Net.NamespaceTimeout`
+	seconds), then registers its own. A client has to know an event before data for it arrives: when the server sends
+	a packet the client hasn't connected, QuickNet drops it and everything after it in that frame's batch. So a
+	service that sends to clients needs a controller woven on the client. The client loads QuickNet only when it
+	connects its first packet, because QuickNet starts reading server traffic as soon as it loads; until then Roblox
+	holds the traffic back.
 
 	On the server every incoming packet runs through its checks in this order: its rate limit (`RateLimit`, or
 	`LoomConfig.Net.RateLimit`), the NaN/inf check (`LoomConfig.Security.RejectNonFinite`),
 	`LoomConfig.Net.Middleware`, then its own `Middleware`. The first check that returns false drops the packet and
-	reports it to Security; otherwise it goes to every listener. Packets from a player Security has blocked are
-	dropped before any check.
+	reports it to Security; otherwise every listener gets it, each in a thread of its own. Packets from a player
+	Security has blocked are dropped before any check. QuickNet's per-event rate limit is off, since its drops
+	wouldn't reach Security.
 ]]
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local LoomRoot = script.Parent.Parent
 local Types = require(LoomRoot.Types)
-local ByteNet = require(LoomRoot.Vendors.ByteNet)
+local Signal = require(LoomRoot.Vendors.Signal)
 local Config = require(script.Parent.Config)
 local Debugger = require(script.Parent.Debugger)
 local Schema = require(script.Parent.Schema)
@@ -27,7 +36,6 @@ local RateLimit = require(LoomRoot.Middleware.RateLimit)
 type Packet<T> = Types.Packet<T>
 type PacketDef<T> = Types.PacketDef<T>
 type Connection = Types.Connection
-type Listener<T> = (data: T, player: Player?) -> ()
 
 -- `Packet<T>` while Loom is still filling it in.
 type MutablePacket<T> = {
@@ -36,34 +44,51 @@ type MutablePacket<T> = {
 	sendToList: (data: T, targets: { Player }) -> (),
 	sendToAllExcept: (data: T, except: Player) -> (),
 	send: (data: T) -> (),
-	listen: (callback: Listener<T>) -> Connection,
+	listen: (callback: (data: T, player: Player?) -> ()) -> Connection,
 	wait: () -> (T, Player?),
 }
 
--- A packet as ByteNet's `defineNamespace` hands it back (only what Loom uses).
-type RawPacket = {
-	read sendToAll: (data: unknown) -> (),
-	read sendTo: (data: unknown, target: Player) -> (),
-	read sendToList: (data: unknown, targets: { Player }) -> (),
-	read sendToAllExcept: (data: unknown, except: Player) -> (),
-	read send: (data: unknown, target: Player?) -> (),
-	read listen: (callback: (data: unknown, player: Player?) -> ()) -> (),
+-- What Loom uses of QuickNet. Every Loom event carries one value, the packet's payload.
+type ServerSignal = { Connect: (self: ServerSignal, callback: (player: Player, data: unknown) -> ()) -> unknown }
+type ClientSignal = { Connect: (self: ClientSignal, callback: (data: unknown) -> ()) -> unknown }
+type Event = {
+	FireAllClients: (self: Event, data: unknown) -> (),
+	FireClient: (self: Event, player: Player, data: unknown) -> (),
+	FireClients: (self: Event, players: { Player }, data: unknown) -> (),
+	FireAllExcept: (self: Event, except: Player, data: unknown) -> (),
+	FireServer: (self: Event, data: unknown) -> (),
+	Unreliable: (self: Event) -> Event,
+	OnServerEvent: ServerSignal,
+	OnClientEvent: ClientSignal,
+}
+type Library = {
+	register: (self: Library, name: string, schema: unknown) -> Event,
+	addEnumItems: (self: Library, enums: { EnumItem }) -> (),
+}
+-- QuickNet's Config module, which its main module reads once, when it loads.
+type Settings = {
+	DebugMode: boolean,
+	DefaultRateLimit: { Max: number, Time: number },
 }
 
--- What Loom remembers about a packet until its namespace is built.
+-- What Loom remembers about a packet until it's registered.
 type PacketState = {
 	schema: unknown,
 	reliability: Types.Reliability?,
-	attach: (raw: RawPacket, label: string) -> (),
+	attach: (event: Event, label: string) -> (),
 	attached: boolean,
 }
 --#endregion
 
 --#region STATE
 local IS_SERVER = RunService:IsServer()
+local QUICKNET = LoomRoot.Vendors.QuickNet
+-- QuickNet keeps each event's id in an attribute named after the event, so names follow Roblox's attribute rules.
+local MAX_NAME_LENGTH = 100
 
 -- Loom.Packet -> its state.
 local states: { [unknown]: PacketState } = {}
+local library: Library? = nil
 --#endregion
 
 --#region LOCAL
@@ -84,7 +109,11 @@ local function checkDefinition(definition: unknown)
 	if fields.Schema == nil then
 		error("Loom.Packet: Schema is missing", 4)
 	end
-	-- ByteNet would treat any other value, typos included, as "unreliable".
+	local schemaProblem = Schema.problem(fields.Schema)
+	if schemaProblem then
+		error(`Loom.Packet: QuickNet rejects the Schema: {schemaProblem}`, 4)
+	end
+	-- Anything else, typos included, would quietly mean "reliable".
 	local reliability = fields.ReliabilityType
 	if reliability ~= nil and reliability ~= "reliable" and reliability ~= "unreliable" then
 		error(`Loom.Packet: ReliabilityType must be "reliable" or "unreliable", got {reliability}`, 4)
@@ -135,6 +164,46 @@ local function buildChecks<T>(definition: PacketDef<T>): ({ Types.Middleware<T> 
 
 	return if #checks > 0 then checks else nil, names
 end
+
+-- QuickNet, loaded with Loom's settings on the first call.
+local function load(): Library
+	local current = library
+	if current then
+		return current
+	end
+
+	local settings = (require(QUICKNET.Config) :: unknown) :: Settings
+	-- QuickNet's own warnings (oversized or malformed batches, a full send buffer) follow Loom's Warn level.
+	settings.DebugMode = Debugger.new("Loom"):IsEnabled("Warn")
+	settings.DefaultRateLimit = { Max = math.huge, Time = 0 }
+
+	local loaded = (require(QUICKNET) :: unknown) :: Library
+	local enumItems = Config.get().Net.EnumItems
+	if #enumItems > 0 then
+		loaded:addEnumItems(enumItems)
+	end
+	library = loaded
+	return loaded
+end
+
+-- Waits for the server to register every name in `names`. Returns the first one still missing after `timeout`
+-- seconds, or nil once all of them are there.
+local function waitForServer(names: { string }, timeout: number): string?
+	local deadline = os.clock() + timeout
+	local remote = QUICKNET:WaitForChild("QuickNetRemote", timeout)
+	if not remote then
+		return names[1]
+	end
+	for _, name in names do
+		while remote:GetAttribute(name) == nil do
+			if os.clock() >= deadline then
+				return name
+			end
+			task.wait()
+		end
+	end
+	return nil
+end
 --#endregion
 
 --#region API
@@ -148,54 +217,21 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 	local checkNames: { string } = {}
 	local label = "" -- "Namespace.Key"
 	local dropLog: Types.Debugger? = nil
-	-- Replaced on every (dis)connect instead of changed in place, so a dispatch already running isn't affected.
-	local listeners: { Listener<T> } = {}
+	local received: Types.Signal<T, Player?> = Signal.new()
 
-	local function listen(callback: Listener<T>): Connection
+	local function listen(callback: (data: T, player: Player?) -> ()): Connection
 		if type(callback) ~= "function" then
 			error("listen expects a function", 2)
 		end
-		local updated = table.clone(listeners)
-		table.insert(updated, callback)
-		listeners = updated
-
-		local connection: Connection
-		local function disconnect(_: Connection)
-			if not connection.Connected then
-				return
-			end
-			connection.Connected = false
-
-			local remaining = table.clone(listeners)
-			local index = table.find(remaining, callback)
-			if index then
-				table.remove(remaining, index)
-			end
-			listeners = remaining
-		end
-
-		connection = {
-			Connected = true,
-			Disconnect = disconnect,
-			Destroy = disconnect,
-		}
-		return connection
+		return received:Connect(callback)
 	end
 
 	local function wait(): (T, Player?)
-		local thread = coroutine.running()
-		local connection: Connection
-		connection = listen(function(data, player)
-			connection:Disconnect()
-			task.spawn(thread, data, player)
-		end)
-
-		local data, player = coroutine.yield()
-		return data :: T, player :: Player?
+		return received:Wait()
 	end
 
 	local function dispatch(data: unknown, player: Player?)
-		-- ByteNet decoded `data` with this packet's schema, so it is a `T`.
+		-- QuickNet decoded `data` with this packet's schema, so it is a `T`.
 		local value = data :: T
 
 		if player then
@@ -216,14 +252,7 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 			end
 		end
 
-		local current = listeners
-		if #current == 1 then
-			current[1](value, player)
-		else
-			for _, listener in current do
-				task.spawn(listener, value, player)
-			end
-		end
+		received:Fire(value, player)
 	end
 
 	local notReady = failing(
@@ -246,7 +275,7 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 		schema = definition.Schema,
 		reliability = definition.ReliabilityType,
 		attached = false,
-		attach = function(raw: RawPacket, key: string)
+		attach = function(event: Event, key: string)
 			state.attached = true
 			label = key
 
@@ -255,24 +284,36 @@ function Net.CreatePacket<T>(definition: PacketDef<T>): Packet<T>
 				if checks and Config.get().Net.LogDrops then
 					dropLog = Debugger.new("Loom")
 				end
-				packet.sendToAll = raw.sendToAll
-				packet.sendTo = raw.sendTo
-				packet.sendToList = raw.sendToList
-				packet.sendToAllExcept = raw.sendToAllExcept
+				packet.sendToAll = function(data)
+					event:FireAllClients(data)
+				end
+				packet.sendTo = function(data, target)
+					event:FireClient(target, data)
+				end
+				packet.sendToList = function(data, targets)
+					event:FireClients(targets, data)
+				end
+				packet.sendToAllExcept = function(data, except)
+					event:FireAllExcept(except, data)
+				end
 				packet.send = failing("send is client -> server; on the server use sendTo/sendToList/sendToAll")
+				event.OnServerEvent:Connect(function(player, data)
+					dispatch(data, player)
+				end)
 			else
 				local serverOnly = failing("sendTo/sendToList/sendToAll(Except) are server -> client; use send")
 				packet.sendToAll = serverOnly
 				packet.sendTo = serverOnly
 				packet.sendToList = serverOnly
 				packet.sendToAllExcept = serverOnly
-				local send = raw.send
 				packet.send = function(data)
-					send(data)
+					event:FireServer(data)
 				end
+				event.OnClientEvent:Connect(function(data)
+					dispatch(data, nil)
+				end)
 			end
 
-			raw.listen(dispatch)
 			table.freeze(packet)
 		end,
 	}
@@ -286,44 +327,79 @@ function Net.IsPacket(value: unknown): boolean
 	return states[value] ~= nil
 end
 
---- Connects a service or controller's packets under its name. On the client, waits for the server to publish them.
+--- Errors, pointing at the caller's caller, unless `net` is a `Loom.Define` Net table and `forServer` matches the side
+--- this code runs on. `name` is the Loom function being called, for the message.
+function Net.CheckView(net: unknown, name: string, forServer: boolean)
+	if forServer ~= IS_SERVER then
+		local other = if forServer then "Loom.ClientNet" else "Loom.ServerNet"
+		error(`{name} is for {if forServer then "services" else "controllers"}; use {other} here`, 3)
+	elseif type(net) ~= "table" then
+		error(`{name} expects a definition's Net table (MyServiceDef.Net), got {typeof(net)}`, 3)
+	end
+	for key, value in net :: { [unknown]: unknown } do
+		if not states[value] then
+			error(`{name} expects a definition's Net table (MyServiceDef.Net); {key} isn't a Loom.Packet`, 3)
+		end
+	end
+end
+
+--- Server only: loads QuickNet and has Security watch its remotes. The client loads QuickNet in `Net.Attach`.
+function Net.Start()
+	if not IS_SERVER then
+		return
+	end
+	load()
+	local remotes: { Instance } = {}
+	for _, name in { "QuickNetRemote", "QuickNetUnreliable" } do
+		local remote = QUICKNET:FindFirstChild(name)
+		if remote then
+			table.insert(remotes, remote)
+		end
+	end
+	Security.Start(remotes)
+end
+
+--- Registers a service or controller's packets with QuickNet. On the client, waits for the server's first.
 function Net.Attach(namespace: string, net: { [string]: unknown })
-	local keys = Schema.sortedKeys(net)
+	local names: { string } = {}
+	local labels: { [string]: string } = {}
 	local packetStates: { [string]: PacketState } = {}
 
-	for _, key in keys do
-		local state = states[net[key]]
+	for key, value in net do
+		local state = states[value]
 		if not state then
 			error(`{namespace}.Net.{key} isn't a Loom.Packet`)
 		elseif state.attached then
 			error(`{namespace}.Net.{key} is already connected (two services share one packet?)`)
 		end
-		packetStates[key] = state
+		local name = `{namespace}_{key}`
+		if #name > MAX_NAME_LENGTH or not string.match(name, "^[%w_]+$") or string.match(name, "^RBX") then
+			error(
+				`{namespace}.Net.{key} would be QuickNet event "{name}". Event names take letters, digits and _ `
+					.. `only, at most {MAX_NAME_LENGTH} characters, and can't start with RBX`
+			)
+		end
+		table.insert(names, name)
+		labels[name] = `{namespace}.{key}`
+		packetStates[name] = state
 	end
+	table.sort(names)
 
 	if not IS_SERVER then
-		-- ByteNet doesn't wait for the server's namespace itself.
-		local storage = ReplicatedStorage:WaitForChild("BytenetStorage")
-		if not storage:WaitForChild(namespace, Config.get().Net.NamespaceTimeout) then
-			error(`The server never published ByteNet namespace '{namespace}'. Is its service woven?`)
+		local missing = waitForServer(names, Config.get().Net.NamespaceTimeout)
+		if missing then
+			error(`The server never registered QuickNet event '{missing}'. Is {namespace} woven on the server?`)
 		end
 	end
 
-	-- ByteNet numbers structs in creation order, so both sides must build packets in the same (sorted) order.
-	local raws = ByteNet.defineNamespace(namespace, function()
-		local definitions = {}
-		for _, key in keys do
-			local state = packetStates[key]
-			definitions[key] = ByteNet.definePacket({
-				value = Schema.resolve(state.schema),
-				reliabilityType = state.reliability,
-			})
+	local quickNet = load()
+	for _, name in names do
+		local state = packetStates[name]
+		local event = quickNet:register(name, Schema.copy(state.schema))
+		if state.reliability == "unreliable" then
+			event = event:Unreliable()
 		end
-		return definitions
-	end)
-
-	for _, key in keys do
-		packetStates[key].attach(raws[key], `{namespace}.{key}`)
+		state.attach(event, labels[name])
 	end
 end
 

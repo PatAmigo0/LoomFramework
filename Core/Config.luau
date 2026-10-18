@@ -27,6 +27,7 @@ export type Resolved = {
 		Middleware: { Check },
 		LogDrops: boolean,
 		NamespaceTimeout: number,
+		EnumItems: { EnumItem },
 	},
 	Spin: {
 		SlowInitWarning: number,
@@ -194,7 +195,7 @@ local function load(): Resolved
 
 	local root = section(raw, "(root)", { "Log", "Net", "Spin", "Security" })
 	local log = section(root.Log, "Log", { "Level", "Overrides" })
-	local net = section(root.Net, "Net", { "RateLimit", "Middleware", "LogDrops", "NamespaceTimeout" })
+	local net = section(root.Net, "Net", { "RateLimit", "Middleware", "LogDrops", "NamespaceTimeout", "EnumItems" })
 	local spin = section(root.Spin, "Spin", { "SlowInitWarning" })
 	local security = section(root.Security, "Security", { "RejectNonFinite", "Traffic", "Strikes", "OnViolation" })
 	if security.OnViolation ~= nil and type(security.OnViolation) ~= "function" then
@@ -227,6 +228,22 @@ local function load(): Resolved
 		end
 	end
 
+	local enumItems: { EnumItem } = {}
+	if net.EnumItems ~= nil then
+		if type(net.EnumItems) ~= "table" then
+			fail("Net.EnumItems", "a list of EnumItems", net.EnumItems)
+		end
+		for i, item in net.EnumItems :: { [unknown]: unknown } do
+			if typeof(item) ~= "EnumItem" then
+				fail(`Net.EnumItems[{i}]`, "an EnumItem", item)
+			end
+			table.insert(enumItems, item :: EnumItem)
+		end
+		if #enumItems > 255 then
+			error(`LoomConfig.Net.EnumItems can hold at most 255 items, got {#enumItems}`, 0)
+		end
+	end
+
 	local rateLimit = if net.RateLimit == nil then DEFAULTS.Net.RateLimit else nil
 	if net.RateLimit ~= nil and net.RateLimit ~= false then
 		local problem = rateLimitProblem(net.RateLimit)
@@ -246,6 +263,7 @@ local function load(): Resolved
 			Middleware = middleware,
 			LogDrops = boolean(net.LogDrops, "Net.LogDrops", DEFAULTS.Net.LogDrops),
 			NamespaceTimeout = positive(net.NamespaceTimeout, "Net.NamespaceTimeout", DEFAULTS.Net.NamespaceTimeout),
+			EnumItems = enumItems,
 		},
 		Spin = {
 			SlowInitWarning = positive(spin.SlowInitWarning, "Spin.SlowInitWarning", DEFAULTS.Spin.SlowInitWarning),

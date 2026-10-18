@@ -1,7 +1,7 @@
 --!strict
 --[[
-	Drops packets with NaN or ±inf anywhere in them. ByteNet's float types decode whatever bits a client sends, so a
-	`float32` can arrive as NaN; NaN fails every comparison, which gets it past checks like `if damage > 100`, and it
+	Drops packets with NaN or ±inf anywhere in them. QuickNet's float types decode whatever bits a client sends, so a
+	`NumberF32` can arrive as NaN; NaN fails every comparison, which gets it past checks like `if damage > 100`, and it
 	spreads through any arithmetic it touches.
 
 	Walks numbers, Vector2, Vector3, CFrame and Color3, and tables (both keys and values) recursively.
@@ -22,12 +22,19 @@ local function check(value: unknown): boolean
 		local v = value :: Vector2
 		return finite(v.X) and finite(v.Y)
 	elseif kind == "CFrame" then
-		for _, component in { (value :: CFrame):GetComponents() } do
-			if not finite(component) then
-				return false
-			end
-		end
-		return true
+		local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = (value :: CFrame):GetComponents()
+		return finite(x)
+			and finite(y)
+			and finite(z)
+			and finite(r00)
+			and finite(r01)
+			and finite(r02)
+			and finite(r10)
+			and finite(r11)
+			and finite(r12)
+			and finite(r20)
+			and finite(r21)
+			and finite(r22)
 	elseif kind == "Color3" then
 		local c = value :: Color3
 		return finite(c.R) and finite(c.G) and finite(c.B)

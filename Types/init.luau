@@ -62,8 +62,11 @@ export type LoomConfig = {
 		Middleware: { (player: Player, data: unknown) -> boolean }?,
 		--- Warn when a rate limit or middleware drops a packet. Default: false.
 		LogDrops: boolean?,
-		--- Seconds a client waits for the server to publish a service's packets. Default: 30.
+		--- Seconds a client waits for the server to register a service's packets. Default: 30.
 		NamespaceTimeout: number?,
+		--- The EnumItems `QuickNet.EnumItem` can carry, at most 255. Both sides read this list, so keep it the
+		--- same for server and client. Default: none.
+		EnumItems: { EnumItem }?,
 	}?,
 	Spin: {
 		--- Seconds before Loom warns about a LoomInit that hasn't returned. Default: 10.
@@ -73,8 +76,8 @@ export type LoomConfig = {
 	Security: {
 		--- Drop client packets with NaN or ±inf anywhere in them (numbers, Vector2/3, CFrame, Color3). Default: false.
 		RejectNonFinite: boolean?,
-		--- A per-player budget for everything sent to ByteNet's remotes, counted before ByteNet decodes it. A player
-		--- over budget has every packet dropped until the window ends. Default: off.
+		--- A per-player budget for everything sent to QuickNet's remotes, counted before QuickNet decodes it. A
+		--- player over budget has every packet dropped until the window ends. Default: off.
 		Traffic: TrafficConfig?,
 		--- What to do with a player who keeps causing violations. Default: off (violations only drop packets).
 		Strikes: StrikesConfig?,
@@ -99,7 +102,7 @@ export type StrikesConfig = {
 --- Something a client sent that Loom rejected.
 --- - `"Drop"`: a rate limit, middleware or `RejectNonFinite` dropped a packet (`Packet` names it).
 --- - `"Traffic"`: the player went over `Security.Traffic`.
---- - `"Payload"`: a call to ByteNet's remotes that wasn't a ByteNet buffer. The real client never sends one.
+--- - `"Payload"`: a call to QuickNet's remotes that wasn't a QuickNet buffer. The real client never sends one.
 export type Violation = {
 	read Kind: "Drop" | "Traffic" | "Payload",
 	--- "Namespace.Key", for drops.
@@ -113,7 +116,7 @@ export type Violation = {
 export type Reliability = "reliable" | "unreliable"
 
 --- Runs on the server for every packet a client sends, before any listener sees it.
---- Return false to drop the packet.
+--- Return false to drop the packet. Don't yield: QuickNet waits for it before reading the sender's next packet.
 export type Middleware<T> = (player: Player, data: T) -> boolean
 
 --- At most `Requests` packets per player every `Window` seconds; extra packets are dropped.
@@ -121,7 +124,7 @@ export type RateLimitConfig = { Requests: number, Window: number }
 
 --- What you pass to `Loom.Packet`.
 export type PacketDef<T> = {
-	--- What the packet carries, built from `Loom.Util.ByteNet`, e.g. `ByteNet.struct({ hp = ByteNet.uint8 })`.
+	--- What the packet carries, built from `Loom.Util.QuickNet`, e.g. `{ hp = QuickNet.NumberU8 }`.
 	Schema: T,
 	ReliabilityType: Reliability?,
 	--- Runs on the server after `LoomConfig.Net.Middleware`, in order.
@@ -139,38 +142,88 @@ export type Packet<T> = {
 	read sendToAllExcept: (data: T, except: Player) -> (),
 	-- client -> server
 	read send: (data: T) -> (),
-	--- `player` is the sender on the server and nil on the client.
+	--- `player` is the sender on the server and nil on the client. Every listener runs in a thread of its own, so
+	--- it can yield.
 	read listen: (callback: (data: T, player: Player?) -> ()) -> Connection,
 	read wait: () -> (T, Player?),
 }
 
---- `Loom.Util.ByteNet`. Every data type is typed as the value it carries, so the type checker sees
---- `ByteNet.struct({ hp = ByteNet.uint8 })` as `{ hp: number }` and infers packet payloads for you.
-export type ByteNet = {
-	struct: <T>(format: T) -> T,
-	array: <T>(value: T) -> { T },
+--- `Loom.Util.QuickNet`: QuickNet's data types. A schema is a plain table of them, nested as deep as you like:
+--- `{ hp = QuickNet.NumberU8 }` is a struct, `{ QuickNet.String }` an array, `{ [QuickNet.String] = QuickNet.NumberU8 }`
+--- a map. Each type is typed as the value it carries, so the checker sees that first schema as `{ hp: number }`.
+--- The QuickNet docs list every type's size and range.
+export type QuickNet = {
 	optional: <T>(value: T) -> T?,
-	map: <K, V>(key: K, value: V) -> { [K]: V },
+	union: <A, B>(a: A, b: B) -> A | B,
+	--- Typed as `unknown`; cast the payload where you use it.
+	unionMany: (...unknown) -> unknown,
+	--- One byte on the wire for any of the given values (strings, numbers, booleans or Vector3s).
+	literal: <T>(...T) -> T,
+	--- Your own encoder. `encode` writes at `offset` and returns the bytes written; `decode` returns the value and
+	--- the bytes read. `metadata` is passed to both as is.
+	custom: <T>(
+		encode: (buff: buffer, offset: number, value: T, instances: { Instance }, metadata: unknown) -> number,
+		decode: (buff: buffer, offset: number, instances: { Instance }?, metadata: unknown) -> (T, number),
+		metadata: unknown?
+	) -> T,
 
-	bool: boolean,
-	string: string,
-	buff: buffer,
-	inst: Instance,
-	cframe: CFrame,
-	vec2: Vector2,
-	vec3: Vector3,
+	NumberU4: number,
+	NumberU8: number,
+	NumberU16: number,
+	NumberU32: number,
+	NumberI8: number,
+	NumberI16: number,
+	NumberI32: number,
+	NumberF16: number,
+	NumberF32: number,
+	NumberF64: number,
 
-	uint8: number,
-	uint16: number,
-	uint32: number,
-	int8: number,
-	int16: number,
-	int32: number,
-	float32: number,
-	float64: number,
+	CFrameFX8: CFrame,
+	CFrameI16FX16: CFrame,
+	CFrameFX16: CFrame,
+	CFrameF16: CFrame,
+	CFrameF32Aligned: CFrame,
+	CFrameF32FX16: CFrame,
+	CFrameF32: CFrame,
 
-	nothing: nil,
-	unknown: unknown,
+	Vector3FX8: Vector3,
+	Vector3I16: Vector3,
+	Vector3FX16: Vector3,
+	Vector3F16: Vector3,
+	Vector3F32: Vector3,
+
+	Vector2FX8: Vector2,
+	Vector2I16: Vector2,
+	Vector2FX16: Vector2,
+	Vector2F16: Vector2,
+	Vector2F32: Vector2,
+
+	--- At most 255 characters; use `StringLong` for more.
+	String: string,
+	StringLong: string,
+	Color3: Color3,
+	BrickColor: BrickColor,
+	Boolean: boolean,
+	Nil: nil,
+	Buffer: buffer,
+	--- Only items listed in `LoomConfig.Net.EnumItems`.
+	EnumItem: EnumItem,
+	Instance: Instance,
+	Player: Player,
+	DateTime32: DateTime,
+	DateTime64: DateTime,
+	TweenInfo: TweenInfo,
+	ColorSequence: ColorSequence,
+	NumberSequence: NumberSequence,
+	NumberRange: NumberRange,
+	UDim: UDim,
+	UDim2: UDim2,
+	Region3: Region3,
+	PhysicalProperties: PhysicalProperties,
+	Rect: Rect,
+	Font: Font,
+	Ray: Ray,
+	Any: unknown,
 }
 
 --- Rebuilds every packet in a `Net` table with only the members named in `Keep` (a union of string
@@ -233,6 +286,18 @@ export type Controller<M, N = nil> = M & {
 
 	LoomInit: (self: Controller<M, N>) -> (),
 	LoomStart: (self: Controller<M, N>) -> (),
+}
+
+--- What `Loom.Weave` adds to a service or controller written as a plain table. Intersect it with the table's own
+--- type for `self`, and return the table as that type:
+---
+---     type Self = typeof(MyService) & Loom.Woven
+---     function MyService.Foo(self: Self) ... end
+---     return MyService :: Self
+export type Woven = {
+	Priority: number,
+	Debugger: Debugger,
+	Trove: Trove,
 }
 
 --#endregion

@@ -14,7 +14,9 @@
 	Named entries wrap their method first, then `"*"` wraps the result.
 
 	Every instance whose LoomInit ran gets LoomDestroy and a cleaned Trove exactly once, including instances
-	removed before they started. If LoomInit throws, the Trove is cleaned and the instance isn't created.
+	removed before they started. If LoomInit throws, the Trove is cleaned and the instance isn't created. If
+	LoomStart throws, the error is logged and the instance never counts as started: no per-frame updates, no
+	`Started`. An error in LoomDestroy is logged too, after the Trove is cleaned.
 ]]
 
 local LoomRoot = script.Parent.Parent
@@ -159,6 +161,7 @@ function LoomComponent.Define<S>(definition: S): S
 	local finished = setmetatable({} :: { [Object]: true }, { __mode = "k" })
 
 	-- Runs LoomDestroy and cleans the Trove, once per instance. The Trove is cleaned even if LoomDestroy throws.
+	-- Errors are logged, not thrown, so the library still fires `Stopped`.
 	local function finish(self: Object)
 		if finished[self] then
 			return
@@ -169,7 +172,7 @@ function LoomComponent.Define<S>(definition: S): S
 		local failure = if loomDestroy then try(loomDestroy, self) else nil
 		self.Trove:Clean()
 		if failure then
-			error(failure, 0)
+			self.Debugger:Warn("LoomDestroy failed: %s", failure)
 		end
 	end
 
@@ -212,8 +215,15 @@ function LoomComponent.Define<S>(definition: S): S
 	local function start(self: Object)
 		started[self] = true
 		local loomStart = hooks.LoomStart
-		if loomStart then
-			loomStart(self)
+		if not loomStart then
+			return
+		end
+		local failure = try(loomStart, self)
+		if failure then
+			self.Debugger:Warn("LoomStart failed: %s", failure)
+			-- The library runs Start in a thread of its own and marks the instance started when Start returns.
+			-- Leaving that thread suspended keeps it from doing so; stopping the instance cancels the thread.
+			coroutine.yield()
 		end
 	end
 
