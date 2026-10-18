@@ -2,7 +2,8 @@
 --[[
 	Woven services (server) / controllers (client) and their lifecycle.
 
-	`Loom.Weave` registers one and gives it its `Debugger` and `Trove`. `Loom.Spin` then:
+	`Loom.Weave` registers one and gives it its `Debugger` and `Trove`, unless it already has them (Loom keeps those,
+	and warns in Studio). `Loom.Spin` then:
 	  1. connects every `Net`, so any service can use any packet from its `LoomInit`;
 	  2. runs every `LoomInit` at the same time (an init may yield) and waits for all of them;
 	  3. spawns `LoomStart` for everything that initialized, highest `Priority` first.
@@ -19,7 +20,6 @@ local Trove = require(LoomRoot.Vendors.Trove)
 local Config = require(script.Parent.Config)
 local Debugger = require(script.Parent.Debugger)
 local Net = require(script.Parent.Net)
-local Security = require(script.Parent.Security)
 
 --#region TYPES
 type Hook = (self: Entry) -> ()
@@ -38,6 +38,7 @@ type Entry = {
 
 --#region STATE
 local KIND = if RunService:IsServer() then "Service" else "Controller"
+local IS_STUDIO = RunService:IsStudio()
 
 local entries: { Entry } = {}
 local woven: { [string]: true } = {}
@@ -130,7 +131,7 @@ end
 --#region API
 local Registry = {}
 
---- Registers a service/controller for `Spin` and gives it its `Debugger` and `Trove`.
+--- Registers a service/controller for `Spin` and gives it its `Debugger` and `Trove` if it doesn't have them yet.
 function Registry.Weave<S>(service: S): S
 	local entry = service :: Entry
 	if type(entry) ~= "table" or type(entry.Name) ~= "string" then
@@ -143,8 +144,25 @@ function Registry.Weave<S>(service: S): S
 
 	woven[entry.Name] = true
 	entry.Priority = entry.Priority or 0
-	entry.Debugger = Debugger.new(entry.Name)
-	entry.Trove = Trove.new()
+	-- Overwriting a Trove the game already filled would leak what's in it, so existing ones stay.
+	local existing: { string } = {}
+	if entry.Debugger ~= nil then
+		table.insert(existing, "Debugger")
+	end
+	if entry.Trove ~= nil then
+		table.insert(existing, "Trove")
+	end
+	if IS_STUDIO and #existing > 0 then
+		debugger():Warn(
+			"%s %s already had %s before Loom.Weave; Loom keeps %s instead of making its own",
+			KIND,
+			entry.Name,
+			table.concat(existing, " and "),
+			if #existing > 1 then "them" else "it"
+		)
+	end
+	entry.Debugger = entry.Debugger or Debugger.new(entry.Name)
+	entry.Trove = entry.Trove or Trove.new()
 	table.insert(entries, entry)
 
 	return service
@@ -157,7 +175,7 @@ function Registry.Spin(): Types.TypedPromise<()>
 			error("Loom.Spin() was already called")
 		end
 		spun = true
-		Security.Start()
+		Net.Start()
 		table.sort(entries, byPriority)
 
 		local ready: { Entry } = {}

@@ -24,7 +24,7 @@ end
 
 --- Catches errors from the method and warns (with a traceback) instead of throwing, so one bad call can't kill
 --- the thread that made it. The method returns nothing when it fails.
-local Safe: Types.AnyDecorator = function(self, callback, ...)
+local Safe: Types.AnyDecorator = function<Self>(self: Self, callback: (Self, ...any) -> ...any, ...: any): ...any
 	local results = table.pack(xpcall(callback, withTraceback, self, ...))
 	if not results[1] then
 		warn(`[Loom.Decorators.Safe] {describe(self)} errored: {results[2]}`)

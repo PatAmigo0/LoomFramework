@@ -1,12 +1,12 @@
 --!strict
 --[[
-	Loom: services, controllers and components with typed ByteNet networking.
+	Loom: services, controllers and components with typed QuickNet networking.
 
 	    -- Shared/Schemas/ShopService.luau: what both sides know (the name and the packets)
 	    return Loom.Define({
 	        Name = "ShopService",
 	        Net = {
-	            Bought = Loom.Packet({ Schema = ByteNet.struct({ item = ByteNet.string, price = ByteNet.uint16 }) }),
+	            Bought = Loom.Packet({ Schema = { item = QuickNet.String, price = QuickNet.NumberU16 } }),
 	        },
 	    })
 
@@ -58,11 +58,12 @@ export type Middleware<T> = Types.Middleware<T>
 export type RateLimitConfig = Types.RateLimitConfig
 export type PacketDef<T> = Types.PacketDef<T>
 export type Packet<T> = Types.Packet<T>
-export type ByteNet = Types.ByteNet
+export type QuickNet = Types.QuickNet
 export type ServerNet<N> = Types.ServerNet<N>
 export type ClientNet<N> = Types.ClientNet<N>
 export type Service<M, N = nil> = Types.Service<M, N>
 export type Controller<M, N = nil> = Types.Controller<M, N>
+export type Woven = Types.Woven
 export type Decorator<Self> = Types.Decorator<Self>
 export type AnyDecorator = Types.AnyDecorator
 export type ComponentUtil = Types.ComponentUtil
@@ -76,7 +77,7 @@ local Loom = {
 	IS_SERVER = RunService:IsServer(),
 
 	Util = table.freeze({
-		ByteNet = Schema.ByteNet,
+		QuickNet = Schema.QuickNet,
 		Promise = Vendors.Promise,
 		Sift = Vendors.Sift,
 		Debugger = Debugger,
@@ -117,15 +118,31 @@ function Loom.Define<D>(definition: D & { read Name: string }): D
 	return definition
 end
 
---- A packet for a `Net` table. Its payload type comes from `Schema`, e.g. `ByteNet.struct({ hp = ByteNet.uint8 })`.
+--- A packet for a `Net` table. Its payload type comes from `Schema`, e.g. `{ hp = QuickNet.NumberU8 }`.
 function Loom.Packet<T>(definition: Types.PacketDef<T>): Types.Packet<T>
 	return Net.CreatePacket(definition)
 end
 
 --- Registers a service (server) or controller (client) for `Loom.Spin` and gives it its `Debugger` and `Trove`.
 --- Returns the same table: define its methods on it.
+---
+--- For a service written as a plain table, call it as a statement (`Loom.Weave(MyService)`) and keep using the local:
+--- a table that comes back out of a generic function loses the checks on `self:Method()` calls.
 function Loom.Weave<S>(service: S): S
 	return Registry.Weave(service)
+end
+
+--- A definition's `Net` for a service written as a plain table: the same packets, typed with only what the server
+--- may call. `Net = Loom.ServerNet(MyServiceDef.Net)`.
+function Loom.ServerNet<N>(net: N): Types.ServerNet<N>
+	Net.CheckView(net, "Loom.ServerNet", true)
+	return (net :: unknown) :: Types.ServerNet<N>
+end
+
+--- The client half of `Loom.ServerNet`, for controllers: `Net = Loom.ClientNet(MyServiceDef.Net)`.
+function Loom.ClientNet<N>(net: N): Types.ClientNet<N>
+	Net.CheckView(net, "Loom.ClientNet", false)
+	return (net :: unknown) :: Types.ClientNet<N>
 end
 
 --- Creates a component class. Returns the class: define its methods on it.

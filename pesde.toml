@@ -1,6 +1,6 @@
 name = "tohue/loom"
-version = "0.6.0"
-description = "custom framework which is using modern luau types and ByteNet for the insane traffic speed"
+version = "0.7.0"
+description = "custom framework which is using modern luau types and QuickNet for the insane traffic speed"
 authors = ["PatAmigos_0"]
 license = "MIT"
 repository = "https://github.com/PatAmigo0/LoomFramework"
@@ -11,6 +11,7 @@ includes = [
     "Enums/**/*.luau",
     "Types/**/*.luau",
     "Vendors/**/*.luau",
+    "Vendors/QuickNet/LICENSE",
     "Middleware/**/*.luau",
     "init.luau",
     "README.md",
@@ -42,7 +43,6 @@ pesde = "^0.7.0"
 lune = "^0.10.2"
 
 [dependencies]
-bytenet = { wally = "ffrostflame/bytenet", version = "^0.4.6" }
 typed-promise = { wally = "lukadev-0/typed-promise", version = "^4.0.2" }
 sift = { wally = "csqrl/sift", version = "^0.0.11" }
 signal = { wally = "sleitnick/signal", version = "^2.0.3" }

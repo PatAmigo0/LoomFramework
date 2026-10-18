@@ -2,17 +2,16 @@
 --[[
 	Server-side protection from `LoomConfig.Security` (see Types.LoomConfig).
 
-	Net reports every packet its checks drop, and skips packets from blocked players. `Security.start` (from
-	`Loom.Spin`) also listens on ByteNet's two remotes, next to ByteNet's own listener, for the traffic budget and
-	for calls that aren't ByteNet buffers. That listener runs after ByteNet's, so the call that crosses the budget is
-	still decoded; the block applies from the next one.
+	Net reports every packet its checks drop, and skips packets from blocked players. `Security.Start` (from
+	`Net.Start`, during `Loom.Spin`) also listens on QuickNet's two remotes, next to QuickNet's own listener, for the
+	traffic budget and for calls that aren't QuickNet buffers. That listener runs after QuickNet's, so the call that
+	crosses the budget is still decoded; the block applies from the next one.
 
 	Every violation goes to `OnViolation` and counts as a strike. `Strikes.Limit` strikes within `Strikes.Window`
 	seconds kick the player or block their packets for `BlockTime` seconds.
 ]]
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local LoomRoot = script.Parent.Parent
@@ -94,13 +93,13 @@ local function report(player: Player, violation: Violation)
 	strike(player)
 end
 
--- Runs for every call to ByteNet's remotes, after ByteNet's own listener.
+-- Runs for every call to QuickNet's remotes, after QuickNet's own listener.
 local function onRemoteCall(player: Player, data: unknown, references: unknown)
 	if typeof(data) ~= "buffer" then
 		report(player, { Kind = "Payload", Reason = `sent a {typeof(data)} instead of a buffer` })
 		return
 	elseif references ~= nil and type(references) ~= "table" then
-		report(player, { Kind = "Payload", Reason = `sent a {typeof(references)} as the reference list` })
+		report(player, { Kind = "Payload", Reason = `sent a {typeof(references)} as the instance list` })
 		return
 	end
 
@@ -151,8 +150,8 @@ function Security.IsBlocked(player: Player): boolean
 	return true
 end
 
---- Starts watching ByteNet's remotes if any of `Traffic`, `Strikes` or `OnViolation` is set. Server only; once.
-function Security.Start()
+--- Starts watching QuickNet's remotes if any of `Traffic`, `Strikes` or `OnViolation` is set. Server only; once.
+function Security.Start(remotes: { Instance })
 	if started or not RunService:IsServer() then
 		return
 	end
@@ -168,17 +167,12 @@ function Security.Start()
 	if not (security.Traffic or security.Strikes or security.OnViolation) then
 		return
 	end
-	-- ByteNet creates these when it's first required, which Loom does while loading.
-	for _, name in { "ByteNetReliable", "ByteNetUnreliable" } do
-		local remote = ReplicatedStorage:FindFirstChild(name)
-		local event = if remote and remote:IsA("RemoteEvent")
-			then remote.OnServerEvent
-			elseif remote and remote:IsA("UnreliableRemoteEvent") then remote.OnServerEvent
-			else nil
-		if event then
-			event:Connect(onRemoteCall)
-		else
-			logger():Error("ReplicatedStorage.%s is missing; Loom can't watch its traffic", name)
+	if #remotes < 2 then
+		logger():Error("QuickNet's remotes are missing; Loom can't watch their traffic")
+	end
+	for _, remote in remotes do
+		if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+			remote.OnServerEvent:Connect(onRemoteCall)
 		end
 	end
 end
